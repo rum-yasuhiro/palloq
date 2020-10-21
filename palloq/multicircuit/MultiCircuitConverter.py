@@ -41,3 +41,14 @@ class MultiCircuitConverter:
         if not isinstance(qc, QuantumCircuit):
             raise ValueError(f"qc must be Quantum Circuit not {type(qc)}")
         self.qcircuits.append(qc)
+
+
+class MultiCircuit:
+    def __init__(self, name=None):
+        if name is None:
+            self.name = str(__name__)
+        else:
+            self.name = name
+
+    def __repr__(self):
+        return self.name
