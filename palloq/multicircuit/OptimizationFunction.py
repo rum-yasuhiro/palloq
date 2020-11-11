@@ -52,18 +52,12 @@ QuantumCircuit.num_qubits:Return number of qubits.
     FIXME If you don't need  some of parameters, please remove it.
     """
     def __init__(self,
-                 circuit_pairs: List[QuantumCircuit],
+                 total_qubits: int,
                  device_errors: List[float] = None,
                  device_topology: List = None):
-        if isinstance(circuit_pairs, (Iterable)):
-            if all(map(lambda x: isinstance(x, QuantumCircuit), circuit_pairs)):
-                self.circuit_pairs = circuit_pairs
-            else:
-                raise ValueError("Argument circuit_pairs must \
-be the iterable of Quantum Circuit")
-        else:
-            raise TypeError(f"Argument circuit_pairs must be the iterable \
-of Quantum Circuit not {type(circuit_pairs)}")
+        if not isinstance(total_qubits, int):
+            raise TypeError("total_qubits must be int")
+        self.total_qubits = total_qubits
         self.device_errors = device_errors
         self.device_topology = device_topology
 
@@ -123,7 +117,17 @@ of Quantum Circuit not {type(circuit_pairs)}")
         # cost = sum([...])
         return cost
 
-    def cost(self):
+    def cost(self, circuit_pairs):
+        if isinstance(circuit_pairs, (Iterable)):
+            if all(map(lambda x: isinstance(x, QuantumCircuit),
+                       circuit_pairs)):
+                self.circuit_pairs = circuit_pairs
+            else:
+                raise ValueError("Argument circuit_pairs must \
+be the iterable of Quantum Circuit")
+        else:
+            raise TypeError(f"Argument circuit_pairs must be the iterable \
+of Quantum Circuit not {type(circuit_pairs)}")
         cost = self._calculate_cost()
         return cost
 
