@@ -1,6 +1,6 @@
 from typing import Union, List
 from qiskit import QuantumCircuit
-from .OptimizationFunction import CostFunctions
+from OptimizationFunction import CostFunction, DepthBaseCost
 
 
 class MultiCircuitConverter:
@@ -8,32 +8,43 @@ class MultiCircuitConverter:
     MultiCircuitConverter combine multiple circuit to a list based on ESP.
 
     Arguments:
-
+        
     '''
-
     def __init__(self,
                  qcircuits: List[QuantumCircuit] = None,
-                 max_size=10) -> None:
+                 max_size=10,
+                 cost_function: CostFunction = DepthBaseCost) -> None:
         self.max_size = max_size
         if qcircuits is not None:
             # Other data type is also availale
             if not isinstance(qcircuits, list):
-                raise TypeError(f"qcircuits must be a list of QuantumCircuit, not {type(qcircuits)}")
+                raise TypeError(f"qcircuits must be a list of QuantumCircuit,\
+ not {type(qcircuits)}")
             if not all([isinstance(qc, QuantumCircuit) for qc in qcircuits]):
-                raise ValueError("All elements in qcircuits must be Quantum Circuit")
+                raise ValueError("All elements in qcircuits \
+must be Quantum Circuit")
             self.qcircuits = qcircuits
         else:
             self.qcircuits = []
         self.opt_combo = []
         # cost function no atumari
-        self.cost_function = CostFunctions()
+        if issubclass(cost_function, CostFunction):
+            self.cost_function = cost_function
+        else:
+            raise ValueError("Argument cost_function must\
+ be subclass of CostFunction")
 
     def optimize(self) -> None:
         """
         This is the core function that optimize the combination of circuit
+
+        Todo:
+            1. Choose optimization method
+            2. Calculate cost
+            3. Packing up with 1 and 2
         """
-        costs = []
-        for i, v in enumerate(self.qcs):
+        cost_func = self.cost_function([QuantumCircuit(1)])
+        for i, v in enumerate(self.qcircuits):
             cost = self.cost_function.cocori_function(v)
             costs.append(cost)
 
@@ -61,7 +72,7 @@ class MultiCircuit:
         return self.name
 
 
-if __name__ ==  "__main__":
+if __name__ == "__main__":
     # user
     qcs = []
     #  ------ run compiler --------
@@ -69,4 +80,4 @@ if __name__ ==  "__main__":
     multi = MultiCircuitConverter(qcs)
     multi.optimize()
     # [[quantum circuit, qc2, qc3], [qc11, qc12], ..., []] -> Output
-    circuits = multi.pop()
+    # circuits = multi.pop()
