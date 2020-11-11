@@ -82,16 +82,18 @@ of Quantum Circuit not {type(circuit_pairs)}")
         # self.device_errors
         # self.device_topology
         # depths = np.array([qc.depth() for qc in self.circuit_pairs]) etc.
+        for qc in self.circuit_pairs:
+            depth = qc.depth()
+            size = qc.num_qubits()
 
-        for qc_depth in circuit_pairs:
             qc_depth = QuantumCircuit.depth(circuit_pairs) #get the depth imformation
             depth.append(qc_depth) #add the result
         
-        for qc_size in circuit_pairs:
+        for qc_size in self.circuit_pairs:
             qc_size = QuantumCircuit.size(circuit_pairs) #get the size imformation
             size.append(qc_size)#add the result
 
-        for qc_ops in circuit_pairs:
+        for qc_ops in self.circuit_pairs:
         qc_ops = QuantumCircuit.count_ops(circuit_pairs) #Count each operation kind in the circuit.
         """
         errorsのリストはどう読んだら良い？
@@ -122,12 +124,14 @@ of Quantum Circuit not {type(circuit_pairs)}")
         return cost
 
     def cost(self):
-        cost = self._calculate_cost(self)
+        cost = self._calculate_cost()
         return cost
 
 
-# if __name__ == "__main__":
-#     # multicircuit converter
-#     qcs = []
-#     costfunction = CostFunctions()
-#     cost = costfunction.cocori_function(qcs)
+if __name__ == "__main__":
+    # multicircuit converter
+    qcs = [QuantumCircuit(3), QuantumCircuit(4)]
+    # List[QuantumCircuit]
+    costfunction = DepthBaseCost(qcs)
+    cost = costfunction.cost()
+    print(cost)
