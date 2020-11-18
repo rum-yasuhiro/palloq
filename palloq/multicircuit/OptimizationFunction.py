@@ -5,7 +5,6 @@ from qiskit import QuantumCircuit
 import abc
 import math
 import numpy as np
-from datetime import datetime
 
 
 # What is input?
@@ -70,45 +69,22 @@ QuantumCircuit.num_qubits:Return number of qubits.
         """
         cost = 0
         depth = []
-        size = []
-        # 1. take information
-        # self.circuit_pairs
-        # self.device_errors
-        # self.device_topology
-        # depths = np.array([qc.depth() for qc in self.circuit_pairs]) etc.
-        for qc in self.circuit_pairs:
-            depth = qc.depth()
-            size = qc.num_qubits()
+        num_qubits = []
+        # # 1. take information
+        # # self.circuit_pairs
+        # # self.device_errors
+        # # self.device_topology
+        # # depths = np.array([qc.depth() for qc in self.circuit_pairs]) etc.
+        for QuantumCircuit in self.circuit_pairs:
+            depth = QuantumCircuit.depth()
+            depth.append(depth)
+            num_qubits = QuantumCircuit.num_qubits()
+            num_qubits.append(num_qubits)
 
-            qc_depth = QuantumCircuit.depth(circuit_pairs) #get the depth imformation
-            depth.append(qc_depth) #add the result
-        
-        for qc_size in self.circuit_pairs:
-            qc_size = QuantumCircuit.size(circuit_pairs) #get the size imformation
-            size.append(qc_size)#add the result
+        # # 2. Using these information, calculate cost
+        # # etc. e*depth
 
-        for qc_ops in self.circuit_pairs:
-        qc_ops = QuantumCircuit.count_ops(circuit_pairs) #Count each operation kind in the circuit.
-        """
-        errorsのリストはどう読んだら良い？
-        """
-        a_day = datetime.now()
-        backend = provider.backends.ibmq_essex 
-        """
-        backendsどうすれば？
-        """
-        prop = backend.properties(datetime=a_day)
-        _qubit_key_list = list(prop._gates.get('u1').keys())
-        u2_errors = [prop._gates.get('u2').get((0, )).get('gate_error')[0] for qubit in _qubit_key_list]
-        u3_errors= [prop._gates.get('u3').get((0, )).get('gate_error')[0] for qubit in _qubit_key_list]
-
-        _cx_key_list = list(prop._gates.get('cx').keys())
-        cx_errors = [prop._gates.get('cx').get(cx_connection).get('gate_error')[0] for cx_connection in _cx_key_list]
-
-        # 2. Using these information, calculate cost
-        # etc. e*depth
-
-        cost = [x * y for (x, y) in zip(qc_depth, qc_size)]
+        cost = depth * num_qubits
         """
         cost計算
         """
@@ -126,7 +102,7 @@ QuantumCircuit.num_qubits:Return number of qubits.
                 raise ValueError("Argument circuit_pairs must \
 be the iterable of Quantum Circuit")
         else:
-            raise TypeError(f"Argument circuit_pairs must be the iterable \
+            raise TypeError("Argument circuit_pairs must be the iterable \
 of Quantum Circuit not {type(circuit_pairs)}")
         cost = self._calculate_cost()
         return cost
@@ -134,8 +110,8 @@ of Quantum Circuit not {type(circuit_pairs)}")
 
 if __name__ == "__main__":
     # multicircuit converter
-    qcs = [QuantumCircuit(3), QuantumCircuit(4)]
+    circuit_pairs = [QuantumCircuit(3), QuantumCircuit(4)]
     # List[QuantumCircuit]
-    costfunction = DepthBaseCost(qcs)
+    costfunction = DepthBaseCost(circuit_pairs)
     cost = costfunction.cost()
     print(cost)
