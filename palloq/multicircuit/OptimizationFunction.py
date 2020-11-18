@@ -68,23 +68,24 @@ QuantumCircuit.num_qubits:Return number of qubits.
             3: Update cost based on that.
         """
         cost = 0
-        depth = []
-        num_qubits = []
+        depths = []
+        num_qubits_list = []
         # # 1. take information
         # # self.circuit_pairs
         # # self.device_errors
         # # self.device_topology
         # # depths = np.array([qc.depth() for qc in self.circuit_pairs]) etc.
-        for QuantumCircuit in self.circuit_pairs:
-            depth = QuantumCircuit.depth()
-            depth.append(depth)
-            num_qubits = QuantumCircuit.num_qubits()
-            num_qubits.append(num_qubits)
+        for qc in self.circuit_pairs:
+            depth = qc.depth()
+            depths.append(depth)
+            num_qubits = qc.num_qubits
+            num_qubits_list.append(num_qubits)
 
         # # 2. Using these information, calculate cost
         # # etc. e*depth
 
-        cost = depth * num_qubits
+        _cost = np.array(depths) * np.array(num_qubits_list)
+        cost = sum(_cost)
         """
         cost計算
         """
@@ -112,6 +113,6 @@ if __name__ == "__main__":
     # multicircuit converter
     circuit_pairs = [QuantumCircuit(3), QuantumCircuit(4)]
     # List[QuantumCircuit]
-    costfunction = DepthBaseCost(circuit_pairs)
-    cost = costfunction.cost()
+    costfunction = DepthBaseCost(10)
+    cost = costfunction.cost(circuit_pairs)
     print(cost)
