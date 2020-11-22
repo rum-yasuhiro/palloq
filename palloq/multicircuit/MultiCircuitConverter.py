@@ -42,6 +42,13 @@ must be Quantum Circuit")
             1. Choose optimization method
             2. Calculate cost
             3. Packing up with 1 and 2
+
+        Basic Optimization strategy.
+        - Max: Throughput
+        - Min: Error rate (For all quantum circuit)
+
+        1. Prepare circuits with its information (dict?)
+        2. 
         """
         cost_func = self.cost_function([QuantumCircuit(1)])
         for i, v in enumerate(self.qcircuits):
