@@ -1,6 +1,8 @@
+import numpy as np
+
 from typing import Union, List
 from qiskit import QuantumCircuit
-from OptimizationFunction import CostFunction, DepthBaseCost
+from .OptimizationFunction import CostFunction, DepthBaseCost
 
 
 class MultiCircuitConverter:
@@ -8,26 +10,36 @@ class MultiCircuitConverter:
     MultiCircuitConverter combine multiple circuit to a list based on ESP.
 
     Arguments:
-        
+        qcircuits: (list) List of Quantum Circuits
+        max_size: (int) The number of qubits in device
+        cost_function: (CostFunction) costfunction to evaluate circuit pairs
     '''
     def __init__(self,
-                 qcircuits: List[QuantumCircuit] = None,
-                 max_size=10,
+                 qcircuits: List[QuantumCircuit],
+                 device_size: int,
                  cost_function: CostFunction = DepthBaseCost) -> None:
-        self.max_size = max_size
-        if qcircuits is not None:
-            # Other data type is also availale
-            if not isinstance(qcircuits, list):
-                raise TypeError(f"qcircuits must be a list of QuantumCircuit,\
- not {type(qcircuits)}")
-            if not all([isinstance(qc, QuantumCircuit) for qc in qcircuits]):
-                raise ValueError("All elements in qcircuits \
-must be Quantum Circuit")
-            self.qcircuits = qcircuits
+
+        # The number of qubits in total
+        if isinstance(device_size, int):
+            self._device_size = device_size
         else:
-            self.qcircuits = []
-        self.opt_combo = []
-        # cost function no atumari
+            raise TypeError("Argument device_size must be int")
+
+        # Other data type is also availale
+        if not isinstance(qcircuits, list):
+            raise TypeError(f"qcircuits must be a list of QuantumCircuit,\
+not {type(qcircuits)}")
+        if not all([isinstance(qc, QuantumCircuit) for qc in qcircuits]):
+            raise ValueError("All elements in qcircuits \
+must be Quantum Circuit")
+
+        if any(map(lambda x:  x.num_qubits > device_size, qcircuits)):
+            raise ValueError("One of circuit size is larger than device size.")
+
+        self.qcircuits = qcircuits
+
+        self.optimized_circuits = []
+        # cost functions
         if issubclass(cost_function, CostFunction):
             self.cost_function = cost_function
         else:
@@ -50,10 +62,43 @@ must be Quantum Circuit")
         1. Prepare circuits with its information (dict?)
         2. 
         """
-        cost_func = self.cost_function([QuantumCircuit(1)])
+        # 0. size of total quantum circuits
+        n = len(self.qcircuits)
+        W = self._device_size
+
+        # 1. translate num qubits as weight.
+        # FIXME All of circuits have the same value
+        weights = [qc.num_qubits for qc in self.qcircuits]
+
+        # 2. prepare dp table
+        dp = [[None]*(W+1) for _ in range(n+1)]
+        rev = [[None]*(W+1) for _ in range(n+1)]
+        # 2.1 Initialize dp table
+        for w in range(W):
+            dp[0][w] = 0
+
+        # 3. loop dp
+        for i in range(n):
+            for w in range(W):
+                if w >= weights[i]:
+                    dp[i+1][w] = max(dp[i][w-weights[i]] + 1, dp[i][w])
+                    rev[i+1][w] = w - weights[i]
+                else:
+                    dp[i+1][w] = dp[i][w]
+                    rev[i+1][w] = w
+        # 4. optimal
+        _combination = []
+        cur_w = W - 1
+        for i in range(n):
+            if rev[i+1][cur_w] == cur_w - weights[i]:
+                _combination.append(i)
+                print(i, weights[i], 1)
+            cur_w = rev[i+1][cur_w]
+        # 5. calculate costs
+        _costs = []
+        _cost_func = self.cost_function(self._device_size)
         for i, v in enumerate(self.qcircuits):
-            cost = self.cost_function.cocori_function(v)
-            costs.append(cost)
+            pass
 
     def has_qc(self) -> bool:
         return len(self.qcircuits) > 0
