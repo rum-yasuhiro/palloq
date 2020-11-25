@@ -6,17 +6,7 @@ import abc
 import math
 import numpy as np
 
-
-# What is input?
-# Ei = np.array([]) #list of error rates of specific block
-# Emn = 1 #one link error rate for one alogrithm
-# gamma = 1 #constant
-# occ = Fraction(qc.num_qubits) #number of qubits in quantum computer ) #occupation rate
-
-# opt = Fraction(gamma,occ) * sum np.prod(Ei) * Emn
-
-# print(opt)
-# # What is output?
+from palloq.utils import esp
 
 
 class CostFunction(metaclass=abc.ABCMeta):

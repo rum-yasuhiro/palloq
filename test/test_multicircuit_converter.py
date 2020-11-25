@@ -21,7 +21,7 @@ class TestMultiCircuitConverter:
 
     def test_has_qc(self):
         pass
-    
+
     def test_pop(self):
         pass
 
