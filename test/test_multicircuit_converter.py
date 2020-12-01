@@ -11,13 +11,14 @@ class TestMultiCircuitConverter:
         pass
 
     def test_init(self, small_circuits):
-        multi_conv = MultiCircuitConverter(small_circuits, 10)
+        multi_conv = MultiCircuitConverter(small_circuits, 30, 30)
         assert multi_conv.qcircuits == small_circuits
 
     def test_optimize(self, small_circuits):
-        multi_conv = MultiCircuitConverter(small_circuits, 10)
+        multi_conv = MultiCircuitConverter(small_circuits, 30, 50)
+        assert len(multi_conv.qcircuits) == 28
         multi_conv.optimize()
-        print(multi_conv.optimized_circuits)
+        assert len(multi_conv.qcircuits) == 27
 
     def test_has_qc(self):
         pass

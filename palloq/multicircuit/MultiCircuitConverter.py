@@ -1,8 +1,13 @@
 import numpy as np
+import copy
+import logging
 
 from typing import Union, List
 from qiskit import QuantumCircuit
 from .OptimizationFunction import CostFunction, DepthBaseCost
+
+
+_log = logging.getLogger(__name__)
 
 
 class MultiCircuitConverter:
@@ -12,11 +17,13 @@ class MultiCircuitConverter:
     Arguments:
         qcircuits: (list) List of Quantum Circuits
         max_size: (int) The number of qubits in device
+        threshold: (float) the threshold to cut the circuit pairs
         cost_function: (CostFunction) costfunction to evaluate circuit pairs
     '''
     def __init__(self,
                  qcircuits: List[QuantumCircuit],
                  device_size: int,
+                 threshold: float,
                  cost_function: CostFunction = DepthBaseCost) -> None:
 
         # The number of qubits in total
@@ -37,7 +44,7 @@ must be Quantum Circuit")
             raise ValueError("One of circuit size is larger than device size.")
 
         self.qcircuits = qcircuits
-
+        self._threshold = threshold
         self.optimized_circuits = []
         # cost functions
         if issubclass(cost_function, CostFunction):
@@ -46,8 +53,9 @@ must be Quantum Circuit")
             raise ValueError("Argument cost_function must\
  be subclass of CostFunction")
 
-    def optimize(self) -> None:
+    def _optimize(self) -> None:
         """
+        TEST
         This is the core function that optimize the combination of circuit
 
         Todo:
@@ -100,9 +108,61 @@ must be Quantum Circuit")
         for i, v in enumerate(self.qcircuits):
             pass
 
+    def optimize(self) -> None:
+        """
+        This is the core function that optimize the combination of circuit
+        - Max: Throughput
+        - Min: Error rate (For all quantum circuit)
+        """
+        # FIXME here using class variables, but could be global scope
+        self._cost_func = self.cost_function(self._device_size)
+        self._candidates = []
+
+        # depth first search
+        def dfs(circuits: List,
+                index: int):
+            # TODO clean up
+            # depth first search
+            # circuits: [(index, QuantumCircuit)]
+            _circuit_instances = [i[1] for i in circuits]
+            total_qubits = sum([i.num_qubits for i in _circuit_instances])
+            _cost = self._cost_func.cost(_circuit_instances)
+            # Three conditions to quit this dfs
+            if (total_qubits >= self._device_size or
+               _cost >= self._threshold or index >= len(self.qcircuits)):
+                _c = self._cost_func.cost(_circuit_instances[:-1])
+                self._candidates.append((circuits[:-1], _c))
+                return
+            # don't add
+            _nqc = copy.copy(circuits)
+            _nqc.append((index, self.qcircuits[index]))
+            # add index+1 circuits
+            dfs(_nqc, index+1)
+            dfs(circuits, index+1)
+        dfs([(0, self.qcircuits[0])], 1)
+
+        # FIXME Post processing 
+        _sorted_candidates = sorted(self._candidates, key=lambda x: x[1])
+        _best_choice = None
+
+        for _choice in _sorted_candidates:
+            if len(_choice[0]) > 0:
+                _best_choice = _choice
+                break
+        print("best", _best_choice)
+        if _best_choice is None:
+            _log.warning("No good grouping is found. All sequencially")
+        else:
+            _qcs, _ = _best_choice
+            _index, _circuits = _qcs[0]
+            self.qcircuits.pop(_index)
+            _mulcirc = MultiCircuit()
+            _mulcirc.set_circuit_pairs(_circuits)
+            self.optimized_circuits.append(_mulcirc)
+
     def has_qc(self) -> bool:
         return len(self.qcircuits) > 0
-    
+
     def pop(self):
         self.opt_combo.pop()
 
@@ -122,6 +182,16 @@ class MultiCircuit:
 
     def __repr__(self):
         return self.name
+
+    def set_circuit_pairs(self, circuits):
+        self.circuit_pairs = circuits
+
+    def circuit(self):
+        # TODO could be generator
+        return self.circuit_pairs
+
+    def cost(self):
+        pass
 
 
 if __name__ == "__main__":
