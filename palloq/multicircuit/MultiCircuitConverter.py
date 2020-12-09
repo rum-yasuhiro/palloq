@@ -4,7 +4,7 @@ import logging
 
 from typing import Union, List
 from qiskit import QuantumCircuit
-from .OptimizationFunction import CostFunction, DepthBaseCost
+from palloq.multicircuit.OptimizationFunction import CostFunction, DepthBaseCost
 
 
 _log = logging.getLogger(__name__)
@@ -139,25 +139,39 @@ must be Quantum Circuit")
             # add index+1 circuits
             dfs(_nqc, index+1)
             dfs(circuits, index+1)
+
         dfs([(0, self.qcircuits[0])], 1)
 
         # FIXME Post processing 
-        _sorted_candidates = sorted(self._candidates, key=lambda x: x[1])
+        _sorted_candidates = sorted(self._candidates,
+                                    key=lambda x: (len(x[0]), 1/(x[1]+1e-6)),
+                                    reverse=True)
         _best_choice = None
-
+        # TODO max len
         for _choice in _sorted_candidates:
-            if len(_choice[0]) > 0:
+            if len(_choice[0]) > 1:
                 _best_choice = _choice
                 break
-        print("best", _best_choice)
+        _log.info("choice", _best_choice)
         if _best_choice is None:
-            _log.warning("No good grouping is found. All sequencially")
+            _log.info("No good grouping is found. All sequencially")
+            for qc in self.qcircuits:
+                _mulcirc = MultiCircuit()
+                _mulcirc.set_circuit_pairs([qc])
+                _mulcirc.set_cost(0)
+                # just pop out from the first cicuit
+                self.qcircuits.pop(0)
+                # What is the cost in the sequencial execution?
+                self.optimized_circuits.append(_mulcirc)
         else:
-            _qcs, _ = _best_choice
+            # take circuits and costs from choice
+            _qcs, _cost = _best_choice
+            # get circuit index and instances
             _index, _circuits = _qcs[0]
             self.qcircuits.pop(_index)
             _mulcirc = MultiCircuit()
             _mulcirc.set_circuit_pairs(_circuits)
+            _mulcirc.set_cost(_cost)
             self.optimized_circuits.append(_mulcirc)
 
     def has_qc(self) -> bool:
@@ -179,6 +193,7 @@ class MultiCircuit:
             self.name = str(__name__)
         else:
             self.name = name
+        self.cost = 0
 
     def __repr__(self):
         return self.name
@@ -186,12 +201,12 @@ class MultiCircuit:
     def set_circuit_pairs(self, circuits):
         self.circuit_pairs = circuits
 
-    def circuit(self):
+    def circuits(self):
         # TODO could be generator
         return self.circuit_pairs
 
-    def cost(self):
-        pass
+    def set_cost(self, _cost):
+        self.cost = _cost
 
 
 if __name__ == "__main__":
@@ -199,7 +214,7 @@ if __name__ == "__main__":
     qcs = []
     #  ------ run compiler --------
     # qc = [qc1, qc2, qc3, qc4, ... qcn] --> Input
-    multi = MultiCircuitConverter(qcs)
+    multi = MultiCircuitConverter(qcs, 100)
     multi.optimize()
     # [[quantum circuit, qc2, qc3], [qc11, qc12], ..., []] -> Output
     # circuits = multi.pop()
