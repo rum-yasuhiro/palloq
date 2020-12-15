@@ -1,1 +1,1 @@
-from .multicircuit.MultiCircuitConverter import MultiCircuitConverter, MultiCircuit
+from .multicircuit.mcircuit_composer import MultiCircuitConverter, MultiCircuit

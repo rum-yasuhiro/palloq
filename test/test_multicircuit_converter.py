@@ -20,6 +20,10 @@ class TestMultiCircuitConverter:
         multi_conv.optimize()
         assert len(multi_conv.qcircuits) == 27
 
+    def test_dp_optimize(self, small_circuits):
+        multi_conv = MultiCircuitConverter(small_circuits, 10, 0.5)
+        multi_conv.single_optimize()
+
     def test_has_qc(self):
         pass
 

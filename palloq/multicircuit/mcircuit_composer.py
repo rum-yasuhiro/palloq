@@ -5,6 +5,7 @@ import logging
 from typing import Union, List
 from qiskit import QuantumCircuit
 from palloq.multicircuit.OptimizationFunction import CostFunction, DepthBaseCost
+from palloq.utils.esp import esp
 
 
 _log = logging.getLogger(__name__)
@@ -53,34 +54,33 @@ must be Quantum Circuit")
             raise ValueError("Argument cost_function must\
  be subclass of CostFunction")
 
-    def _optimize(self) -> None:
+    def single_optimize(self) -> None:
         """
-        TEST
-        This is the core function that optimize the combination of circuit
+        optimize circuit conbination based on just single circuit property.
 
-        Todo:
-            1. Choose optimization method
-            2. Calculate cost
-            3. Packing up with 1 and 2
-
-        Basic Optimization strategy.
-        - Max: Throughput
-        - Min: Error rate (For all quantum circuit)
-
-        1. Prepare circuits with its information (dict?)
-        2. 
+        Optimization policy:
+            combine high esp circuits as many as possible 
         """
         # 0. size of total quantum circuits
         n = len(self.qcircuits)
         W = self._device_size
 
-        # 1. translate num qubits as weight.
-        # FIXME All of circuits have the same value
+        # 1. The number of qubits in one circuit 
+        # corresonds to the weight for it
         weights = [qc.num_qubits for qc in self.qcircuits]
+        # using estimated successs probability as the value for single circuit
+        # TODO take this as class argument
+        error_rates = {"u3": 0.0001,
+                       "cx": 0.001,
+                       "id": 0}
+        # TODO find proper evaluation method for one 
+        # circuit in multiple circuit
+        values = [esp(qc, error_rates) for qc in self.qcircuits]
 
-        # 2. prepare dp table
-        dp = [[None]*(W+1) for _ in range(n+1)]
-        rev = [[None]*(W+1) for _ in range(n+1)]
+        # 2. prepare dp table and reverse table
+        dp = [[0] * (W) for _ in range(n+1)]
+        rev = [[0] * (W) for _ in range(n+1)]
+
         # 2.1 Initialize dp table
         for w in range(W):
             dp[0][w] = 0
@@ -88,25 +88,36 @@ must be Quantum Circuit")
         # 3. loop dp
         for i in range(n):
             for w in range(W):
+                # pick up ith item
                 if w >= weights[i]:
-                    dp[i+1][w] = max(dp[i][w-weights[i]] + 1, dp[i][w])
-                    rev[i+1][w] = w - weights[i]
-                else:
+                    if dp[i+1][w] < dp[i][w-weights[i]] + values[i]:
+                        dp[i+1][w] = dp[i][w-weights[i]] + values[i]
+                        rev[i+1][w] = w - weights[i]
+
+                # do not pick up ith item
+                if dp[i+1][w] < dp[i][w]:
                     dp[i+1][w] = dp[i][w]
                     rev[i+1][w] = w
         # 4. optimal
         _combination = []
         cur_w = W - 1
-        for i in range(n):
+        for i in range(n-1, -1, -1):
             if rev[i+1][cur_w] == cur_w - weights[i]:
                 _combination.append(i)
-                print(i, weights[i], 1)
             cur_w = rev[i+1][cur_w]
         # 5. calculate costs
-        _costs = []
-        _cost_func = self.cost_function(self._device_size)
-        for i, v in enumerate(self.qcircuits):
-            pass
+        if _combination == []:
+            raise Exception("There are no good combinations")
+        else:
+            # 5.1 create multi circuit class and add circuit
+            mult = MultiCircuit()
+            mult.set_circuit_pairs([self.qcircuits[i] for i in _combination])
+            # 5.2 append it as optimized circuit
+            self.optimized_circuits.append(mult)
+            # 5.3 pop out from original circuit
+            for i, corr in enumerate(_combination):
+                # need correction for popout
+                self.qcircuits.pop(corr-i)
 
     def optimize(self) -> None:
         """
