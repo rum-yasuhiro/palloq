@@ -4,10 +4,10 @@ Benchmark environement for multi circuit composer
 import logging
 
 from typing import List
-from qiskit import QuantumCircuit, IBMQ, execute
+from qiskit import QuantumCircuit, IBMQ, execute, Aer
 
 # internal
-from daq.multicircuit.mcircuit_composer import MultiCircuitComposer
+from palloq.multicircuit.mcircuit_composer import MultiCircuitComposer, MCC
 
 _log = logging.getLogger(__name__)
 
@@ -19,35 +19,39 @@ class MCCBench:
     This class has series of support tools for benchmarks
     Arugments:
         circuits: (list) list or array of QuantumCircuit in qiskit.
-        backend: TODO extend fake device (currently only real IBMQ device)
+        backend: TODO extend fake device
         track: (bool) if track the all execution or not
     """
 
     def __init__(self,
                  circuits: List[QuantumCircuit],
-                 backend=None,
+                 backend,
                  track: bool = False):
         if not all(map(lambda x: isinstance(x, QuantumCircuit), circuits)):
             raise Exception("Input circuit must be instance of QuantumCircuit")
         self.qcircuits = circuits
 
-        if not isinstance(backend, IBMQ):
-            raise NotImplementedError("Currently, IBMQ is only available ")
+#         if not isinstance(backend, (IBMQ, Aer)):
+#             raise NotImplementedError("Currently, IBMQ and Aer simulators\
+# are only available ")
 
         if "properties" not in dir(backend):
             raise Exception("No property found in backend")
         self.backend = backend
-        self._device_size = self.backend.properties.n_qubits
+        self._device_size = self.backend.configuration().n_qubits
         self._track = track
 
         # Initialize composer and compiler
         self._composer = None
         self._compiler = None
 
+        # metric to evaluate probability distribution
+        self._metric = None
+
         # results
         self.results = []
 
-    def set_composer(self, composer):
+    def set_composer(self, composer, *prop):
         """
         Set a multi-circuit composer to fold up several different circiuts.
 
@@ -59,7 +63,7 @@ class MCCBench:
         if not issubclass(composer, MultiCircuitComposer):
             raise Exception("composer must be a subclass\
 of multicircuit composer")
-        self._composer = composer(self.qcirciuts, self._device_size)
+        self._composer = composer(self.qcircuits, self._device_size, *prop)
 
     def set_compiler(self, compiler):
         """
@@ -67,9 +71,13 @@ of multicircuit composer")
         """
         self._compiler = compiler
 
-    def set_metric(self):
+    def set_metric(self, metric_func):
         """
         setting metric to evaluate the final probability distribution
+
+        Argument:
+            metric_func: (function(a, b))Function to evaluate 
+                         two different probability distribution
         """
         pass
 
@@ -105,8 +113,10 @@ of multicircuit composer")
             # 1. compose multiple circuits
             self._composer.compose()
             # 1.1 take composed circuit
+            _s = len(self.qcircuits)
             multi_circuit = self._composer.pop()
-
+            # debug reason
+            assert _s != self.qcircuits
             # 1.2 compile multi circuit
             qc = self._compiler(multi_circuit)
             return qc
@@ -128,6 +138,9 @@ neither of them are None is fine.")
         if track:
             logging.basicConfig(level=logging.INFO)
 
+        # previous size
+        _size = len(self.qcircuits)
+
         # 1. loop for circuiuts
         while len(self.qcircuits) > 0:
             # 2.1 run compose and compile
@@ -135,6 +148,9 @@ neither of them are None is fine.")
             # 2.2 actual execution
             result = self._execute(qc)
             self.results.append(result)
+            # loop interupter
+            if _size == len(self.qcircuits):
+                raise Exception("Something went wrong")
 
 
 class QCEnv:
@@ -142,7 +158,22 @@ class QCEnv:
         pass
 
 
-if __name__ == "__maim__":
+if __name__ == "__main__":
     # preparer circuits
-    bench_circuits = []
-    bench = MCCBench()
+    qcs = []
+    for i in range(10):
+        qc = QuantumCircuit(3)
+        for j in range(i):
+            qc.h(0)
+            qc.cx(0, 1)
+        qcs.append(qc)
+
+    # prepare benchmark environments
+    provider = IBMQ.load_account()
+    backend = provider.get_backend("ibmq_vigo")
+    bench = MCCBench(circuits=qcs, backend=backend)
+
+    # set composer and compiler
+    bench.set_composer(MCC, 0.1)
+    bench.set_compiler()
+    
