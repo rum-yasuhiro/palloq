@@ -126,10 +126,12 @@ class DepthBaseCost(CostFunction):
     """
     This Cost function returns a cost taking
     several quantum circuits as inputs.
+
 QuantumCircuit.depth:depth
 QuantumCircuit.size():Returns total number of gate operations in circuit.
 QuantumCircuit.count_ops():Count each operation kind in the circuit.
 QuantumCircuit.num_qubits:Return number of qubits.
+
     Arguments:
         circuit_pairs: (list) List of Quantum Circuit to calculate cost
         device_errors: (?) Device error information
