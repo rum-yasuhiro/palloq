@@ -1,5 +1,5 @@
 """
-Benchmark environement for multi circuit composer
+Benchmark environement for multi circuit composer and compiler
 """
 import logging
 
