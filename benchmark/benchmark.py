@@ -186,7 +186,9 @@ neither of them are None is fine.")
 
         This function should visualize performance for each pairs of execution.
         """
-        self._parse_count(self.results["count"])
+        for i, res in self.results:
+            _count = self._parse_count(res["count"])
+            print(_count)
 
 
 class QCEnv:
@@ -197,8 +199,8 @@ class QCEnv:
 if __name__ == "__main__":
     # preparer circuits
     qcs = []
-    for i in range(3, 7):
-        qc = QuantumCircuit(i+1, 3)
+    for i in range(20):
+        qc = QuantumCircuit(8, 3)
         for j in range(i):
             qc.h(0)
             qc.cx(0, 1)
