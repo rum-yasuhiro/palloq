@@ -262,6 +262,74 @@ must be Quantum Circuit")
         self.qcircuits.append(qc)
 
 
+class MCC_random(MultiCircuitComposer):
+    '''
+    Random Circuit composer.
+
+    Arguments:
+        qcircuits: (list) List of Quantum Circuits
+        max_size: (int) The number of qubits in device
+        threshold: (float) the threshold to cut the circuit pairs
+        cost_function: (CostFunction) costfunction to evaluate circuit pairs
+    '''
+    def __init__(self,
+                 qcircuits: List[QuantumCircuit],
+                 device_size: int,
+                 eval_func=esp) -> None:
+
+        # The number of qubits in total
+        if isinstance(device_size, int):
+            self._device_size = device_size
+        else:
+            raise TypeError("Argument device_size must be int")
+
+        # Other data type is also availale
+        if not isinstance(qcircuits, list):
+            raise TypeError(f"qcircuits must be a list of QuantumCircuit,\
+not {type(qcircuits)}")
+        if not all([isinstance(qc, QuantumCircuit) for qc in qcircuits]):
+            raise ValueError("All elements in qcircuits \
+must be Quantum Circuit")
+
+        if any(map(lambda x:  x.num_qubits > device_size, qcircuits)):
+            raise ValueError("One of circuit size is larger than device size.")
+
+        self.qcircuits = qcircuits
+        self.optimized_circuits = []
+        # function that evaluate circuit
+        self.eval_func = eval_func
+
+    def compose(self) -> None:
+        """
+        optimize circuit conbination based on just single circuit property.
+
+        Optimization policy:
+            combine high esp circuits as many as possible 
+        """
+        indices = []
+        qcs = []
+        nq = 0
+        for iq, qc in enumerate(self.qcircuits):
+            nq += qc.num_qubits
+            if nq > self._device_size:
+                break
+            indices.append(iq)
+            qcs.append(qc)
+        mcirc = MultiCircuit()
+        mcirc.set_circuit_pairs(qcs)
+        return mcirc
+
+
+    def has_qc(self) -> bool:
+        return len(self.qcircuits) > 0
+
+    def push(self,
+             qc: QuantumCircuit) -> None:
+        if not isinstance(qc, QuantumCircuit):
+            raise ValueError(f"qc must be Quantum Circuit not {type(qc)}")
+        self.qcircuits.append(qc)
+
+
 class MultiCircuit:
     def __init__(self, name=None):
         if name is None:
