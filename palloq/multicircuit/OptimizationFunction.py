@@ -37,20 +37,17 @@ class CrosstalkBaseCost(CostFunction):
 
     def _calculate_cost(self) -> float:
         cost = 0
-        device_qubits = []
         num_qubits_list = []
 
         for qc in self.circuit_pairs:
             num_qubits = qc.num_qubits
             num_qubits_list.append(num_qubits)
 
-        device_qubits = 
-        
         _cost = sum(num_qubits_list)
-        cost = _cost * 100 /device_qubits
-       """
-       qubitsの合計/デバイスのqubits数をコストとして返す
-       """
+        cost = _cost * 100 / self.total_qubits
+        """
+        qubitsの合計/デバイスのqubits数をコストとして返す
+        """
 
         return cost
 

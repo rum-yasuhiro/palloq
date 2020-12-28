@@ -7,7 +7,8 @@ from typing import List
 from qiskit import QuantumCircuit, IBMQ, execute, Aer
 
 # internal
-from palloq.multicircuit.mcircuit_composer import MultiCircuitComposer, MCC
+from palloq.multicircuit.mcircuit_composer import MultiCircuitComposer, MCC, MCC_dp
+from palloq.compiler.multi_transpile import multi_transpile
 
 _log = logging.getLogger(__name__)
 
@@ -27,17 +28,16 @@ class MCCBench:
                  circuits: List[QuantumCircuit],
                  backend,
                  track: bool = False):
+        # list of circuits
         if not all(map(lambda x: isinstance(x, QuantumCircuit), circuits)):
             raise Exception("Input circuit must be instance of QuantumCircuit")
         self.qcircuits = circuits
 
-#         if not isinstance(backend, (IBMQ, Aer)):
-#             raise NotImplementedError("Currently, IBMQ and Aer simulators\
-# are only available ")
-
+        # need backend property to get the number of qubits in a device
         if "properties" not in dir(backend):
             raise Exception("No property found in backend")
         self.backend = backend
+        # the number of qubits
         self._device_size = self.backend.configuration().n_qubits
         self._track = track
 
@@ -49,7 +49,7 @@ class MCCBench:
         self._metric = None
 
         # results
-        self.results = []
+        self.results = {}
 
     def set_composer(self, composer, *prop):
         """
@@ -58,14 +58,13 @@ class MCCBench:
         Arguments:
             composer: (MultiCircuitComposer) 
                       This composer must have compose function.
-                      This composer must be instanciated before.
         """
         if not issubclass(composer, MultiCircuitComposer):
             raise Exception("composer must be a subclass\
 of multicircuit composer")
         self._composer = composer(self.qcircuits, self._device_size, *prop)
 
-    def set_compiler(self, compiler):
+    def set_compiler(self, compiler, *prop):
         """
         setting compiler for actual execution
         """
@@ -79,7 +78,7 @@ of multicircuit composer")
             metric_func: (function(a, b))Function to evaluate 
                          two different probability distribution
         """
-        pass
+        self._metric = metric_func
 
     def compose(self) -> list:
         """
@@ -92,37 +91,35 @@ of multicircuit composer")
         # TODO check if this' ok or not
         yield done
 
-    def summary(self):
-        pass
-
     def _execute(self, qc):
         """
-        Actual execution of quantum circuit.
+        Execution wrapper for getting count
         """
         job = execute(qc, backend=self.backend)
-        return job.result()
+        return job.result().get_counts(qc)
 
     def run(self) -> QuantumCircuit:
         """
-        run function do optimization in just one time.
+        Compose several circuit into one circuit and compile it.
 
         This function pop out pair of circuits.
         """
         # 0. if there is composer and compiler, do compose
         if self._composer is not None and self._compiler is not None:
             # 1. compose multiple circuits
-            self._composer.compose()
-            # 1.1 take composed circuit
+            # record the number of circuits before composition
             _s = len(self.qcircuits)
-            multi_circuit = self._composer.pop()
+            # 1.1 take composed circuit
+            multi_circuit = self._composer.compose()
             # debug reason
-            assert _s != self.qcircuits
+            assert _s != len(self.qcircuits)
             # 1.2 compile multi circuit
-            qc = self._compiler(multi_circuit)
+            # FIXME choose one of either
+            qc = self._compiler(multi_circuit.circuits(), xtalk_prop={})
             return qc
         elif self._composer is None and self._compiler is None:
             # 2. just sequencial
-            return self.qcircuits.pop()
+            return [self.qcircuits.pop()]
         else:
             raise Exception("Both of composer and compiler is None or\
 neither of them are None is fine.")
@@ -130,9 +127,9 @@ neither of them are None is fine.")
     def evaluate(self,
                  track: bool = False):
         """
-        evaluate entire performance.
+        Evaluate entire performance of composer.
 
-        Loop for all quantum circuits. 
+        Loop for all quantum circuits.
         """
         # 0. if track mode, all executions are tracked
         if track:
@@ -142,15 +139,54 @@ neither of them are None is fine.")
         _size = len(self.qcircuits)
 
         # 1. loop for circuiuts
+        _c = 0  # loop counter
         while len(self.qcircuits) > 0:
             # 2.1 run compose and compile
+            _log.info(f"{_c} time execution start")
             qc = self.run()
             # 2.2 actual execution
-            result = self._execute(qc)
-            self.results.append(result)
+            count = self._execute(qc)
+            _log.info(f"Got count {count}")
+            self.results[_c]["count"] = count
+            self.results[_c]["circuit"] = qc
+            _c += 1
             # loop interupter
             if _size == len(self.qcircuits):
-                raise Exception("Something went wrong")
+                break
+        if len(self.qcircuits) > 0:
+            raise Exception(f"Something went wrong.\
+{len(self.qcircuits)} circuits remain. ")
+
+    def _parse_count(self, count):
+        """
+        Parse output counts and make it readable.
+
+        Argument:
+            count: (dict) output count of execution.
+            i.g. {'000 001': 100, '000 010': 80...}
+        """
+        _result = {}
+        # 0. initialize result format
+        first_count = next(iter(count)).split(" ")
+        for ib, b in enumerate(first_count):
+            # make empty dict to store the measurement results
+            _csize = len(b)
+            _result[ib] = {format(t, "0%db" % (_csize)): 0
+                           for t in range(2**_csize)}
+        # update count values
+        for ct, val in count.items():
+            _split_count = ct.split(" ")
+            for ic, b in enumerate(_split_count):
+                _result[ic][b] += val
+        return _result
+
+    def summary(self):
+        """
+        Show summary of entire execution.
+
+        This function should visualize performance for each pairs of execution.
+        """
+        self._parse_count(self.results["count"])
 
 
 class QCEnv:
@@ -161,19 +197,29 @@ class QCEnv:
 if __name__ == "__main__":
     # preparer circuits
     qcs = []
-    for i in range(10):
-        qc = QuantumCircuit(3)
+    for i in range(3, 7):
+        qc = QuantumCircuit(i+1, 3)
         for j in range(i):
             qc.h(0)
             qc.cx(0, 1)
+        qc.measure(0, 0)
+        qc.measure(1, 1)
+        qc.measure(2, 2)
         qcs.append(qc)
 
     # prepare benchmark environments
     provider = IBMQ.load_account()
-    backend = provider.get_backend("ibmq_vigo")
+    provider = IBMQ.get_provider(hub='ibm-q-utokyo',
+                                 group='keio-internal',
+                                 project='keio-students')
+    backend = provider.get_backend("ibmq_manhattan")
     bench = MCCBench(circuits=qcs, backend=backend)
 
     # set composer and compiler
-    bench.set_composer(MCC, 0.1)
-    bench.set_compiler()
-    
+    bench.set_composer(MCC_dp)
+    bench.set_compiler(multi_transpile)
+
+    # evaluate with circuit datasets
+    # with tracking all info level log
+    bench.evaluate(track=True)
+    bench.summary()

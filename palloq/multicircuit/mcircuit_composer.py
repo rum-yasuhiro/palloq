@@ -78,7 +78,7 @@ must be Quantum Circuit")
         """
         # FIXME here using class variables, but could be global scope
         self._cost_func = self.cost_function(self._device_size)
-        self._candidates = []
+        _candidates = []
 
         # depth first search
         def dfs(circuits: List,
@@ -93,7 +93,7 @@ must be Quantum Circuit")
             if (total_qubits >= self._device_size or
                _cost >= self._threshold or index >= len(self.qcircuits)):
                 _c = self._cost_func.cost(_circuit_instances[:-1])
-                self._candidates.append((circuits[:-1], _c))
+                _candidates.append((circuits[:-1], _c))
                 return
             # don't add
             _nqc = copy.copy(circuits)
@@ -105,7 +105,7 @@ must be Quantum Circuit")
         dfs([(0, self.qcircuits[0])], 1)
 
         # FIXME Post processing 
-        _sorted_candidates = sorted(self._candidates,
+        _sorted_candidates = sorted(_candidates,
                                     key=lambda x: (len(x[0]), 1/(x[1]+1e-6)),
                                     reverse=True)
         _best_choice = None
@@ -114,35 +114,34 @@ must be Quantum Circuit")
             if len(_choice[0]) > 1:
                 _best_choice = _choice
                 break
-        _log.info("choice", _best_choice)
+        _log.info(f"choice: {'Single' if _best_choice is None else 'Multi'}")
+        # If there is no chice to take, then just return single qc
         if _best_choice is None:
-            _log.info("No good grouping is found. All sequencially")
-            for qc in self.qcircuits:
-                _mulcirc = MultiCircuit()
-                _mulcirc.set_circuit_pairs([qc])
-                _mulcirc.set_cost(0)
-                # just pop out from the first cicuit
-                self.qcircuits.pop(0)
-                # What is the cost in the sequencial execution?
-                self.optimized_circuits.append(_mulcirc)
-            return True
+            _log.info("No good grouping is found. Return single circuit")
+            # prepare multi circuit class
+            mulcirc = MultiCircuit()
+            # pop out from quantum circuit
+            _qc = self.qcircuits.pop(0)
+            mulcirc.set_circuit_pairs([_qc])
+            mulcirc.set_cost(0)
+            # What is the cost in the sequencial execution?
+            return mulcirc
         else:
+            _log.info("pop out circuit based on cost calculations")
             # take circuits and costs from choice
             _qcs, _cost = _best_choice
             # get circuit index and instances
             _index, _circuits = _qcs[0]
+            # TODO check if this process is working properly
+            print(_index, _circuits)
             self.qcircuits.pop(_index)
-            _mulcirc = MultiCircuit()
-            _mulcirc.set_circuit_pairs(_circuits)
-            _mulcirc.set_cost(_cost)
-            self.optimized_circuits.append(_mulcirc)
-            return False
+            mulcirc = MultiCircuit()
+            mulcirc.set_circuit_pairs(_circuits)
+            mulcirc.set_cost(_cost)
+            return mulcirc
 
     def has_qc(self) -> bool:
         return len(self.qcircuits) > 0
-
-    def pop(self):
-        self.optimized_circuits.pop()
 
     def push(self,
              qc: QuantumCircuit) -> None:
@@ -164,8 +163,7 @@ class MCC_dp(MultiCircuitComposer):
     def __init__(self,
                  qcircuits: List[QuantumCircuit],
                  device_size: int,
-                 threshold: float,
-                 cost_function: CostFunction = DepthBaseCost) -> None:
+                 eval_func=esp) -> None:
 
         # The number of qubits in total
         if isinstance(device_size, int):
@@ -185,14 +183,9 @@ must be Quantum Circuit")
             raise ValueError("One of circuit size is larger than device size.")
 
         self.qcircuits = qcircuits
-        self._threshold = threshold
         self.optimized_circuits = []
-        # cost functions
-        if issubclass(cost_function, CostFunction):
-            self.cost_function = cost_function
-        else:
-            raise ValueError("Argument cost_function must\
- be subclass of CostFunction")
+        # function that evaluate circuit
+        self.eval_func = eval_func
 
     def compose(self) -> None:
         """
@@ -215,7 +208,7 @@ must be Quantum Circuit")
                        "id": 0}
         # TODO find proper evaluation method for one 
         # circuit in multiple circuit
-        values = [esp(qc, error_rates) for qc in self.qcircuits]
+        values = [self.eval_func(qc, error_rates) for qc in self.qcircuits]
 
         # 2. prepare dp table and reverse table
         dp = [[0] * (W) for _ in range(n+1)]
@@ -247,24 +240,20 @@ must be Quantum Circuit")
             cur_w = rev[i+1][cur_w]
         # 5. calculate costs
         if _combination == []:
-            return True
+            return self.qcircuits.pop(0)
         else:
             # 5.1 create multi circuit class and add circuit
             mult = MultiCircuit()
             mult.set_circuit_pairs([self.qcircuits[i] for i in _combination])
-            # 5.2 append it as optimized circuit
-            self.optimized_circuits.append(mult)
-            # 5.3 pop out from original circuit
-            for i, corr in enumerate(_combination):
+            for i, corr in enumerate(sorted(_combination)):
+                if len(self.qcircuits) == 0:
+                    break
                 # need correction for popout
                 self.qcircuits.pop(corr-i)
-            return False
+            return mult
 
     def has_qc(self) -> bool:
         return len(self.qcircuits) > 0
-
-    def pop_mqc(self):
-        self.optimized_circuits.pop()
 
     def push(self,
              qc: QuantumCircuit) -> None:
@@ -293,7 +282,3 @@ class MultiCircuit:
 
     def set_cost(self, _cost):
         self.cost = _cost
-
-
-if __name__ == "__main__":
-    pass
