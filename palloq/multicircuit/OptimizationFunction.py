@@ -38,14 +38,14 @@ class CrosstalkBaseCost(CostFunction):
 
     def _calculate_cost(self) -> float:
          cost = 0
-         num_qubits_list = []
+         cost_list = []
 
          for qc in self.circuit_pairs:
-            num_qubits = qc.num_qubits
-            num_qubits_list.append(num_qubits)
+             each_cost = qc.num_qubits / self.total_qubits
+             cost_list.append(each_cost)
         
-         _cost = sum(num_qubits_list)
-         cost = _cost * 100 /self.total_qubits
+         _cost = sum(cost_list)
+         cost = _cost / len(self.circuit_pairs)
 
          """
          qubitsの合計/デバイスのqubits数をコストとして返す
@@ -89,7 +89,8 @@ class DurationTimeCost(CostFunction):
         u3_list = []
 
         for qc in self.circuit_pairs:
-            qc_ops = qc.count_ops()
+            uqc = transpile(qc, basis_gates = ['u3', 'cx'])
+            qc_ops = uqc.count_ops()
             cx_num = qc_ops.get('cx', 0)
             u3_num = qc_ops.get('u3', 0)
             cx_list.append(cx_num)
@@ -193,6 +194,7 @@ of Quantum Circuit not {type(circuit_pairs)}")
 if __name__ == "__main__":
     # multicircuit converter
     circuit_pairs = []
+    """
     for i in range(10):
         qc = QuantumCircuit(3)
         for j in range(i):
@@ -200,6 +202,18 @@ if __name__ == "__main__":
             qc.h(0)
             qc.cx(0,1)
         circuit_pairs.append(qc)
+    """
+
+    qc = QuantumCircuit(3)
+    qc.cx(0,1)
+    qc.h(1)
+    qc.barrier()
+    qc.measure_all()
+    qc2 = QuantumCircuit(5)
+    qc.cx(0,1)
+    qc.h(1)
+    circuit_pairs.append(qc)
+    circuit_pairs.append(qc2)
     # List[QuantumCircuit]
     costfunction = DepthBaseCost(10)
     costfunction2 = DurationTimeCost(10)
