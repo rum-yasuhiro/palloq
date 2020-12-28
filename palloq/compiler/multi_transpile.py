@@ -124,7 +124,7 @@ def multi_transpile(circuits: Union[List[QuantumCircuit], List[List[QuantumCircu
                             pass_manager=pass_manager, callback=callback, output_name=output_name)
     if isinstance(transpied_circuit, list) and len(transpied_circuit)==1: 
         return transpied_circuit[0]
-    return 
+    return transpied_circuit
 
 
 def _compose_multicircuits(circuits: List[QuantumCircuit], output_name) -> QuantumCircuit:
