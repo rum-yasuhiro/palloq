@@ -89,14 +89,14 @@ class DurationTimeCost(CostFunction):
         u3_list = []
 
         for qc in self.circuit_pairs:
-            qc_ops = qc.count_ops(circuit_pairs)
-            cx_num = qc_ops['cx']
-            u3_num = qc_ops['u3']
+            qc_ops = qc.count_ops()
+            cx_num = qc_ops.get('cx', 0)
+            u3_num = qc_ops.get('u3', 0)
             cx_list.append(cx_num)
             u3_list.append(u3_num)
 
-        total_cx = sum(cx_num)
-        total_u3 = sum(u3_num)
+        total_cx = sum(cx_list)
+        total_u3 = sum(u3_list)
         cost = total_cx * cx_duration_time + total_u3 * u3_duration_time
         
         return cost
