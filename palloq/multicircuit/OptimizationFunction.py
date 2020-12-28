@@ -34,25 +34,24 @@ class CrosstalkBaseCost(CostFunction):
         self.total_qubits = total_qubits
         self.device_errors = device_errors
         self.device_topology = device_topology
+        
 
     def _calculate_cost(self) -> float:
-        cost = 0
-        device_qubits = []
-        num_qubits_list = []
+         cost = 0
+         num_qubits_list = []
 
-        for qc in self.circuit_pairs:
+         for qc in self.circuit_pairs:
             num_qubits = qc.num_qubits
             num_qubits_list.append(num_qubits)
-
-        device_qubits = 
         
-        _cost = sum(num_qubits_list)
-        cost = _cost * 100 /device_qubits
-       """
-       qubitsの合計/デバイスのqubits数をコストとして返す
-       """
+         _cost = sum(num_qubits_list)
+         cost = _cost * 100 /self.total_qubits
 
-        return cost
+         """
+         qubitsの合計/デバイスのqubits数をコストとして返す
+         """
+
+         return cost
 
     def cost(self, circuit_pairs):
         if isinstance(circuit_pairs, (Iterable)):
@@ -81,12 +80,7 @@ class DurationTimeCost(CostFunction):
         self.device_topology = device_topology
 
     def _calculate_cost(self) -> float:
-        """
-        Todo:
-            1: Get circuits information (depth, gates etc.)
-            2: Based on that information, calculate cost.
-            3: Update cost based on that.
-        """
+
         cost = 0
         qc_ops = collections.OrderedDict()
         cx_duration_time = 2000
@@ -98,8 +92,8 @@ class DurationTimeCost(CostFunction):
             qc_ops = qc.count_ops(circuit_pairs)
             cx_num = qc_ops['cx']
             u3_num = qc_ops['u3']
-            cx_list.append[cx_num]
-            u3_list.append[u3_num]
+            cx_list.append(cx_num)
+            u3_list.append(u3_num)
 
         total_cx = sum(cx_num)
         total_u3 = sum(u3_num)
@@ -120,7 +114,6 @@ be the iterable of Quantum Circuit")
 of Quantum Circuit not {type(circuit_pairs)}")
         cost = self._calculate_cost()
         return cost
-
 
 class DepthBaseCost(CostFunction):
     """
@@ -199,8 +192,19 @@ of Quantum Circuit not {type(circuit_pairs)}")
 
 if __name__ == "__main__":
     # multicircuit converter
-    circuit_pairs = [QuantumCircuit(3), QuantumCircuit(4)]
+    circuit_pairs = []
+    for i in range(10):
+        qc = QuantumCircuit(3)
+        for j in range(i):
+            qc.x(i % 3)
+            qc.h(0)
+            qc.cx(0,1)
+        circuit_pairs.append(qc)
     # List[QuantumCircuit]
     costfunction = DepthBaseCost(10)
+    costfunction2 = DurationTimeCost(10)
+    costfunction3 = CrosstalkBaseCost(10)
     cost = costfunction.cost(circuit_pairs)
-    print(cost)
+    cost2 = costfunction2.cost(circuit_pairs)
+    cost3 = costfunction3.cost(circuit_pairs)
+    print(cost,cost2,cost3)
