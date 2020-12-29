@@ -2,6 +2,7 @@
 Benchmark environement for multi circuit composer and compiler
 """
 import logging
+import numpy as np
 
 from typing import List
 from qiskit import QuantumCircuit, IBMQ, execute, Aer
@@ -147,6 +148,7 @@ neither of them are None is fine.")
             # 2.2 actual execution
             count = self._execute(qc)
             _log.info(f"Got count {count}")
+            self.results[_c] = {}
             self.results[_c]["count"] = count
             self.results[_c]["circuit"] = qc
             _c += 1
@@ -186,15 +188,35 @@ neither of them are None is fine.")
 
         This function should visualize performance for each pairs of execution.
         """
-        for i, res in self.results:
+        if self.results == {}:
+            raise Exception("No results to show.")
+
+        for i, res in self.results.items():
+            # show the pairs of circuits
+            _log.info("Circuit pairs")
+            # parse results for each circuit
             _count = self._parse_count(res["count"])
-            print(_count)
+            print("count", _count)
+            # evaluation result
+            _log.info(f"Evaluaiton Result with {self._metric.__name__}")
 
 
 class QCEnv:
     def __init__(self):
         pass
 
+
+def kd(prob_distA: List,
+       prob_distB: List):
+    p1 = np.array(prob_distA) + 1e-10
+    p2 = np.array(prob_distB) + 1e-10
+    return sum(p1 * np.log(p1/p2))
+
+def jsd(prob_distA, prob_distB):
+    """
+    Jensen Shanon Divergence
+    """
+    pass
 
 if __name__ == "__main__":
     # preparer circuits
@@ -210,7 +232,7 @@ if __name__ == "__main__":
         qcs.append(qc)
 
     # prepare benchmark environments
-    provider = IBMQ.load_account()
+    IBMQ.load_account()
     provider = IBMQ.get_provider(hub='ibm-q-utokyo',
                                  group='keio-internal',
                                  project='keio-students')
@@ -224,4 +246,7 @@ if __name__ == "__main__":
     # evaluate with circuit datasets
     # with tracking all info level log
     bench.evaluate(track=True)
+    # TODO dazai: 
+    # 1. get result
+    # 2. js, norm, fidelity, evaluate
     bench.summary()

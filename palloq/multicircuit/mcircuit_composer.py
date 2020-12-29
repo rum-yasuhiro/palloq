@@ -133,7 +133,7 @@ must be Quantum Circuit")
             # get circuit index and instances
             _index, _circuits = _qcs[0]
             # TODO check if this process is working properly
-            print(_index, _circuits)
+            # print(_index, _circuits)
             self.qcircuits.pop(_index)
             mulcirc = MultiCircuit()
             mulcirc.set_circuit_pairs(_circuits)
@@ -198,7 +198,7 @@ must be Quantum Circuit")
         n = len(self.qcircuits)
         W = self._device_size
 
-        # 1. The number of qubits in one circuit 
+        # 1. The number of qubits in one circuit
         # corresonds to the weight for it
         weights = [qc.num_qubits for qc in self.qcircuits]
         # using estimated successs probability as the value for single circuit
@@ -206,7 +206,7 @@ must be Quantum Circuit")
         error_rates = {"u3": 0.0001,
                        "cx": 0.001,
                        "id": 0}
-        # TODO find proper evaluation method for one 
+        # TODO find proper evaluation method for one
         # circuit in multiple circuit
         values = [self.eval_func(qc, error_rates) for qc in self.qcircuits]
 
@@ -318,7 +318,6 @@ must be Quantum Circuit")
         mcirc = MultiCircuit()
         mcirc.set_circuit_pairs(qcs)
         return mcirc
-
 
     def has_qc(self) -> bool:
         return len(self.qcircuits) > 0
