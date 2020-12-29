@@ -198,7 +198,8 @@ neither of them are None is fine.")
             _count = self._parse_count(res["count"])
             print("count", _count)
             # evaluation result
-            _log.info(f"Evaluaiton Result with {self._metric.__name__}")
+            if self._metric is not None:
+                _log.info(f"Evaluaiton Result with {self._metric.__name__}")
 
 
 class QCEnv:
