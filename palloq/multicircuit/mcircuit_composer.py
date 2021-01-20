@@ -275,6 +275,7 @@ class MCC_random(MultiCircuitComposer):
     def __init__(self,
                  qcircuits: List[QuantumCircuit],
                  device_size: int,
+                 threshold: int,
                  eval_func=esp) -> None:
 
         # The number of qubits in total

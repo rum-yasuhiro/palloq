@@ -12,7 +12,7 @@ from palloq.compiler import multi_transpile
 from palloq.multicircuit.OptimizationFunction import DurationTimeCost
 from palloq.multicircuit.mcircuit_composer import MCC_random, MCC
 from palloq.utils import get_IBMQ_backend
-from benchmark.utils import PrepareQASMBench
+from utils import PrepareQASMBench
 
 def execute_circuits(circuit, backend, shots, opt_level=1):
     """
@@ -45,6 +45,7 @@ def multicompile_circuits(mcircuit):
     """
 
     qcircuits = mcircuit.circuits()
+    print("hogehoge", qcircuits)
     return multi_transpile(qcircuits)
 
 
@@ -88,23 +89,26 @@ def jsd(results):
 
 def experiment():
     IBMQ.load_account()
-    ibmq_toronto = get_IBMQ_backend("ibmq_toronto")
+    ibmq_sydney = get_IBMQ_backend("ibmq_sydney")
     qasm_simulator = Aer.get_backend('qasm_simulator')
     #0. prepare circuits
-    qcircuit = []
+    qasm_bench = ["adder_n4","basis_change_n3", "basis_trotter_n4", "bell_n4", "cat_state_n4" ]
+    qcircuit = PrepareQASMBench(qasm_bench, "qasmbench.pickle").qc_list()
+    print("circuits", qcircuit)
     #1. compose_circuits
-    mcircuit = compose_circuits(qcircuit, MCC, 27, 20000, DurationTimeCost)
+    mcircuit = compose_circuits(qcircuit, MCC, 27, 200000, DurationTimeCost)
     rcircuit = compose_circuits(qcircuit, MCC_random, 27, None, None)
+    print("multi circuit", mcircuit, rcircuit)
     #2. compile circuits
     qc = multicompile_circuits(mcircuit)
     qc2 = multicompile_circuits(rcircuit)
     #3. execute circuits
     results1 = []
     results2 = []
-    results1.append(execute_circuits(qc, ibmq_toronto, 1024))
+    results1.append(execute_circuits(qc, ibmq_sydney, 1024))
     results1.append(execute_circuits(qc, qasm_simulator, 1024))
 
-    results2.append(execute_circuits(qc, ibmq_toronto, 1024))
+    results2.append(execute_circuits(qc, ibmq_sydney, 1024))
     results2.append(execute_circuits(qc, qasm_simulator, 1024))
 
     #4. calculate jsd
