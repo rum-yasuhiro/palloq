@@ -54,16 +54,13 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                 self.cx_reliability[(ginfo.qubits[0], ginfo.qubits[1])] = g_reliab
                 self.gate_list.append((ginfo.qubits[0], ginfo.qubits[1]))
 
-            if ginfo.gate == "u2":
-                idx = ginfo.qubits[0]
-                idx_list.append(idx)
-
-        for q, idx in zip(backend_prop.qubits, idx_list):
+        idx = 0
+        for q in backend_prop.qubits:
             for nduv in q:
                 if nduv.name == "readout_error":
                     self.readout_reliability[idx] = 1.0 - nduv.value
                     self.available_hw_qubits.append(idx)
-
+            idx += 1
         self._update_edge_prop()
 
     def _update_edge_prop(self):
@@ -107,18 +104,10 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
         q0 = min(edge[0], edge[1])
         q1 = max(edge[0], edge[1])
         edge = (q0, q1)
-        if (
-            self.crosstalk_prop is not None
-            and edge in self.crosstalk_prop
-            and edge not in self.crosstalk_edges
-        ):
-            #####################################
-            # print("######## it works #########")
-            # print(self.crosstalk_edges)
-            # print("edge: ", edge)
-            # print("gate_reliab", self.gate_reliability)
-            #####################################
-            for xtalk_edge in self.crosstalk_prop[edge]:
+        if self.crosstalk_prop and edge in self.crosstalk_prop:
+            print(self.crosstalk_prop[edge])
+            for xtalk_edge, crosstalk_ratio in self.crosstalk_prop[edge].items():
+                print(xtalk_edge)
                 cx_err = 1 - self.cx_reliability[xtalk_edge]
                 #################
                 # print(cx_err)
@@ -131,19 +120,18 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                 try:
                     crosstalk_ratio = max(
                         self.crosstalk_prop[xtalk_edge][edge],
-                        self.crosstalk_prop[edge][xtalk_edge],
+                        crosstalk_ratio,
                     )
                 except:
-                    crosstalk_ratio = self.crosstalk_prop[edge][xtalk_edge]
+                    pass
                 _tmp_cx_err = cx_err
                 if crosstalk_ratio >= 1:
                     cx_err *= crosstalk_ratio
                 cx_err = cx_err if cx_err <= 0.9999 else 0.9999
                 #################
-                print("Updated", edge, " from ", _tmp_cx_err, " to ", cx_err)
+                print("Updated", edge, ':', xtalk_edge, " from ", _tmp_cx_err, " to ", cx_err)
                 ################
                 self.cx_reliability[xtalk_edge] = 1 - cx_err
-                cx_err_edge = 1 - self.cx_reliability[edge]
 
             self.crosstalk_edges.append(edge)
             self._update_edge_prop()
@@ -259,8 +247,21 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                 best_hw_qubit = hw_qubit
         return best_hw_qubit
 
+    def _correct_xtalk_prop_keys(self):
+        corrected_prop = {}
+        for twoQcon, xtalk_dict in self.crosstalk_prop.items(): 
+            corrected_dict = {}
+            corrected_twoQcon = (min(twoQcon[0], twoQcon[1]), max(twoQcon[0], twoQcon[1]))
+            for pair, xtalk_ratio in xtalk_dict.items(): 
+                corrected_pair = (min(pair[0], pair[1]), max(pair[0], pair[1]))
+                corrected_dict[corrected_pair] = xtalk_ratio
+            corrected_prop[corrected_twoQcon] = corrected_dict
+        self.crosstalk_prop = corrected_prop
+
+
     def run(self, dag):
         """Run the CrosstalkAdaptiveLayout pass on `list of dag`."""
+        self._correct_xtalk_prop_keys()
         self._initialize_backend_prop()
         num_qubits = self._create_program_graphs(dag=dag)
 
