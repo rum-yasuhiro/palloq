@@ -8,7 +8,7 @@ from copy import deepcopy
 from qiskit.circuit import QuantumCircuit
 from qiskit.compiler import transpile
 
-from benchmark.util.pickle_tools import pickle_dump, pickle_load
+from benchmark.utils.pickle_tools import pickle_dump, pickle_load
 
 _log = logging.getLogger(__name__)
 class PrepareQASMBench():     

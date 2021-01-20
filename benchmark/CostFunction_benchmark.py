@@ -12,6 +12,7 @@ from palloq.compiler import multi_transpile
 from palloq.multicircuit.OptimizationFunction import DurationTimeCost
 from palloq.multicircuit.mcircuit_composer import MCC_random, MCC
 from palloq.utils import get_IBMQ_backend
+from benchmark.utils import PrepareQASMBench
 
 def execute_circuits(circuit, backend, shots, opt_level=1):
     """
@@ -87,7 +88,6 @@ def jsd(results):
 
 def experiment():
     IBMQ.load_account()
-    get_IBMQ_backend()
     ibmq_toronto = get_IBMQ_backend("ibmq_toronto")
     qasm_simulator = Aer.get_backend('qasm_simulator')
     #0. prepare circuits
