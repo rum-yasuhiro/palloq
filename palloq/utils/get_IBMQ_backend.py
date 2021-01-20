@@ -1,6 +1,6 @@
 from qiskit import IBMQ
 
-def get_IBM_backend(backend_name, reservations=False): 
+def get_IBMQ_backend(backend_name, reservations=False): 
     
     IBMQ.load_account()
     if reservations:
