@@ -5,6 +5,7 @@ import logging
 import numpy as np
 
 from typing import List
+from scipy.spatial.distance import jensenshannon
 from qiskit import QuantumCircuit, IBMQ, execute, Aer
 
 # internal
@@ -247,11 +248,11 @@ if __name__ == "__main__":
     provider = IBMQ.get_provider(hub='ibm-q-utokyo',
                                  group='keio-internal',
                                  project='keio-students')
-    backend = provider.get_backend("ibmq_manhattan")
+    backend = provider.get_backend("ibmq_sydney")
     bench = MCCBench(circuits=qcs, backend=backend)
 
     # set composer and compiler
-    bench.set_composer(MCC(cost_function=cost_func))
+    bench.set_composer(MCC_dp)
     bench.set_compiler(multi_transpile)
 
     # evaluate with circuit datasets

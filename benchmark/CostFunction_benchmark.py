@@ -3,6 +3,7 @@
 
 # Jensen-Shannonダイバージェンス
 import numpy as np
+import logging
 from scipy.spatial.distance import jensenshannon
 from qiskit import execute, Aer, IBMQ
 
@@ -11,6 +12,8 @@ from palloq.multicircuit.OptimizationFunction import DurationTimeCost
 from palloq.multicircuit.mcircuit_composer import MCC_random, MCC
 from palloq.utils import get_IBMQ_backend
 from utils import PrepareQASMBench
+
+_log = logging.getLogger(__name__)
 
 
 def execute_circuits(circuit, backend, shots, opt_level=1):
@@ -150,4 +153,5 @@ def experiment():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     experiment()
