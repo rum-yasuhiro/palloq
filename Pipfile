@@ -9,6 +9,8 @@ flake8 = "*"
 [packages]
 qiskit = "*"
 pytest = "*"
+gspread = "*"
+oauth2client = "*"
 
 [requires]
 python_version = "3.8"
