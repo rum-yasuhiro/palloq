@@ -3,16 +3,15 @@
 
 # Jensen-Shannonダイバージェンス
 import numpy as np
-from typing import Union, List
-from scipy.stats import norm, entropy
 from scipy.spatial.distance import jensenshannon
-from qiskit import QuantumCircuit, QuantumRegister, execute, Aer, IBMQ
+from qiskit import execute, Aer, IBMQ
 
 from palloq.compiler import multi_transpile
 from palloq.multicircuit.OptimizationFunction import DurationTimeCost
 from palloq.multicircuit.mcircuit_composer import MCC_random, MCC
 from palloq.utils import get_IBMQ_backend
 from utils import PrepareQASMBench
+
 
 def execute_circuits(circuit, backend, shots, opt_level=1):
     """
@@ -21,22 +20,31 @@ def execute_circuits(circuit, backend, shots, opt_level=1):
        backend: IBMQ backends
        shots: (int)
     """
-    #Execute
-    job = execute(circuit, backend=backend, shots=shots, optimization_level=opt_level)
+    # Execute
+    job = execute(circuit,
+                  backend=backend,
+                  shots=shots,
+                  optimization_level=opt_level)
     return job.result().get_counts(circuit)
 
-def compose_circuits(circuits, composer, device_size, threshold, cost_function):
+
+def compose_circuits(circuits,
+                     composer,
+                     device_size,
+                     threshold,
+                     cost_function):
     """
     Arguments:
        circuits: (List[QuantumCircuit]) list of QuantumCircuit
        composer: 
     """
-    #initialize composer
+    # initialize composer
     _composer = composer(circuits, device_size, threshold, cost_function)
-    #give circuits to the composoer
+    # give circuits to the composoer
     mcircuit = _composer.compose()
-    #get the composed circuit
+    # get the composed circuit
     return mcircuit
+
 
 def multicompile_circuits(mcircuit):
     """
@@ -45,7 +53,6 @@ def multicompile_circuits(mcircuit):
     """
 
     qcircuits = mcircuit.circuits()
-    print("hogehoge", qcircuits)
     return multi_transpile(qcircuits)
 
 
@@ -87,35 +94,39 @@ def jsd(results):
     jsd = jensenshannon(prob_dist1, prob_dist2)
     return jsd
 
+
 def experiment():
     IBMQ.load_account()
     ibmq_sydney = get_IBMQ_backend("ibmq_sydney")
     qasm_simulator = Aer.get_backend('qasm_simulator')
-    #0. prepare circuits
-    qasm_bench = ["adder_n4","basis_change_n3", "basis_trotter_n4", "bell_n4", "cat_state_n4" ]
+    # 0. prepare circuits
+    qasm_bench = ["adder_n4",
+                  "basis_change_n3",
+                  "basis_trotter_n4",
+                  "bell_n4",
+                  "cat_state_n4"]
     qcircuit = PrepareQASMBench(qasm_bench, "qasmbench.pickle").qc_list()
-    print("circuits", qcircuit)
-    #1. compose_circuits
+    # 1. compose_circuits
     mcircuit = compose_circuits(qcircuit, MCC, 27, 200000, DurationTimeCost)
     rcircuit = compose_circuits(qcircuit, MCC_random, 27, None, None)
-    print("multi circuit", mcircuit, rcircuit)
-    #2. compile circuits
+    # 2. compile circuits
     qc = multicompile_circuits(mcircuit)
     qc2 = multicompile_circuits(rcircuit)
-    #3. execute circuits
+    # 3. execute circuits
     results1 = []
     results2 = []
     results1.append(execute_circuits(qc, ibmq_sydney, 1024))
     results1.append(execute_circuits(qc, qasm_simulator, 1024))
 
-    results2.append(execute_circuits(qc, ibmq_sydney, 1024))
-    results2.append(execute_circuits(qc, qasm_simulator, 1024))
+    results2.append(execute_circuits(qc2, ibmq_sydney, 1024))
+    results2.append(execute_circuits(qc2, qasm_simulator, 1024))
 
-    #4. calculate jsd
+    # 4. calculate jsd
     jsd1 = jsd(results1)
     jsd2 = jsd(results2)
 
     print(jsd1, jsd2)
 
-if __name__  == "__main__":
+
+if __name__ == "__main__":
     experiment()

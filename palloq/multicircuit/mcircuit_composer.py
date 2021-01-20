@@ -131,10 +131,10 @@ must be Quantum Circuit")
             # take circuits and costs from choice
             _qcs, _cost = _best_choice
             # get circuit index and instances
-            _index, _circuits = _qcs[0]
-            # TODO check if this process is working properly
-            # print(_index, _circuits)
-            self.qcircuits.pop(_index)
+            _circuits = []
+            for i, v in enumerate(_qcs):
+                self.qcircuits.pop(v[0]-i)
+                _circuits.append(v[1])
             mulcirc = MultiCircuit()
             mulcirc.set_circuit_pairs(_circuits)
             mulcirc.set_cost(_cost)
@@ -240,7 +240,9 @@ must be Quantum Circuit")
             cur_w = rev[i+1][cur_w]
         # 5. calculate costs
         if _combination == []:
-            return self.qcircuits.pop(0)
+            mult = MultiCircuit()
+            mult.set_circuit_pairs([self.qcircuits.pop(0)])
+            return mult
         else:
             # 5.1 create multi circuit class and add circuit
             mult = MultiCircuit()
