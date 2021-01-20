@@ -83,21 +83,37 @@ class DurationTimeCost(CostFunction):
         cost = 0
         qc_ops = collections.OrderedDict()
         cx_duration_time = 2000
-        u3_duration_time = 200
+        rz_duration_time = 200
+        sx_duration_time = 200
+        x_duration_time = 200
+        id_duration_time = 200
         cx_list = []
-        u3_list = []
+        rz_list = []
+        sx_list = []
+        x_list = []
+        id_list = []
 
         for qc in self.circuit_pairs:
-            uqc = transpile(qc, basis_gates = ['u3', 'cx'])
+            uqc = transpile(qc, basis_gates = ['rz', 'cx', 'sx', 'x', 'id'])
             qc_ops = uqc.count_ops()
             cx_num = qc_ops.get('cx', 0)
-            u3_num = qc_ops.get('u3', 0)
+            rz_num = qc_ops.get('rz', 0)
+            sx_num = qc_ops.get('sx', 0)
+            x_num = qc_ops.get('x', 0)
+            id_num = qc_ops.get('id', 0)
+
             cx_list.append(cx_num)
-            u3_list.append(u3_num)
+            rz_list.append(rz_num)
+            sx_list.append(sx_num)
+            x_list.append(x_num)
+            id_list.append(id_num)
 
         total_cx = sum(cx_list)
-        total_u3 = sum(u3_list)
-        cost = total_cx * cx_duration_time + total_u3 * u3_duration_time
+        total_rz = sum(rz_list)
+        total_sx = sum(sx_list)
+        total_x = sum(x_list)
+        total_id = sum(id_list)
+        cost = total_cx * cx_duration_time + total_rz * rz_duration_time + total_sx * sx_duration_time + total_x * x_duration_time + total_id * id_duration_time
         
         return cost
 
