@@ -5,33 +5,49 @@
 import numpy as np
 from typing import Union, List
 from scipy.stats import norm, entropy
+from scipy.spatial.distance import jensenshannon
+from qiskit import QuantumCircuit, QuantumRegister, execute, Aer, IBMQ
 
+from palloq.compiler import multi_transpile
+from palloq.multicircuit.OptimizationFunction import DurationTimeCost
+from palloq.multicircuit.mcircuit_composer import MCC_random, MCC
+from palloq.utils import get_IBMQ_backend
 
-def js_divergence(self,
-                  answer: Union[List, np.ndarray],
-                  answer2: Union[List, np.ndarray]):
+def execute_circuits(circuit, backend, shots, opt_level=1):
     """
     Arguments:
-        answer: (list, array) Probability distribution
-        answer2: (list, array) Probability distribution
+       circuit: (QuantumCircuit)
+       backend: IBMQ backends
+       shots: (int)
     """
-    ans_rate = np.array(answer)
-    ans_rate2 = np.array(answer2)
-    
-    slf_ent_1 = sum(-1 * (ans_rate * np.log(ans_rate) + (1 - ans_rate2) * np.log(1 - ans_rate2)))
-    slf_ent_2 = sum(-1 * (ans_rate2 * np.log(ans_rate2) + (1 - ans_rate) * np.log(1 - ans_rate)))
-    crs_ent_1 = sum(-1 * (ans_rate * np.log(ans_rate2) + (1 - ans_rate2) * np.log(1 - ans_rate)))
-    crs_ent_2 = sum(-1 * (ans_rate2 * np.log(ans_rate) + (1 - ans_rate) * np.log(1 - ans_rate2)))
+    #Execute
+    job = execute(circuit, backend=backend, shots=shots, optimization_level=opt_level)
+    return job.result().get_counts(circuit)
 
-    kld_1 = crs_ent_1 - slf_ent_1
-    kld_2 = crs_ent_2 - slf_ent_2
+def compose_circuits(circuits, composer, device_size, threshold, cost_function):
+    """
+    Arguments:
+       circuits: (List[QuantumCircuit]) list of QuantumCircuit
+       composer: 
+    """
+    #initialize composer
+    _composer = composer(circuits, device_size, threshold, cost_function)
+    #give circuits to the composoer
+    mcircuit = _composer.compose()
+    #get the composed circuit
+    return mcircuit
 
-    jsd = (kld_1 + kld_2) / 2
-    
-    return jsd
+def multicompile_circuits(mcircuit):
+    """
+    Arguments:
+       mcircuit: (mcircuit) Composed circuits
+    """
+
+    qcircuits = mcircuit.circuits()
+    return multi_transpile(qcircuits)
 
 
-def calculate_jsd(self, results):
+def jsd(results):
     """
     1. get computational result
     2. calculate jsd
@@ -66,5 +82,36 @@ def calculate_jsd(self, results):
         np.append(prob_dist1, prob1.get(b, 0) / shots1)
         np.append(prob_dist2, prob2.get(b, 0) / shots2)
 
-    jsd = js_divergence(prob_dist1, prob_dist2)
+    jsd = jensenshannon(prob_dist1, prob_dist2)
     return jsd
+
+def experiment():
+    IBMQ.load_account()
+    get_IBMQ_backend()
+    ibmq_toronto = get_IBMQ_backend("ibmq_toronto")
+    qasm_simulator = Aer.get_backend('qasm_simulator')
+    #0. prepare circuits
+    qcircuit = []
+    #1. compose_circuits
+    mcircuit = compose_circuits(qcircuit, MCC, 27, 20000, DurationTimeCost)
+    rcircuit = compose_circuits(qcircuit, MCC_random, 27, None, None)
+    #2. compile circuits
+    qc = multicompile_circuits(mcircuit)
+    qc2 = multicompile_circuits(rcircuit)
+    #3. execute circuits
+    results1 = []
+    results2 = []
+    results1.append(execute_circuits(qc, ibmq_toronto, 1024))
+    results1.append(execute_circuits(qc, qasm_simulator, 1024))
+
+    results2.append(execute_circuits(qc, ibmq_toronto, 1024))
+    results2.append(execute_circuits(qc, qasm_simulator, 1024))
+
+    #4. calculate jsd
+    jsd1 = jsd(results1)
+    jsd2 = jsd(results2)
+
+    print(jsd1, jsd2)
+
+if __name__  == "__main__":
+    experiment()
