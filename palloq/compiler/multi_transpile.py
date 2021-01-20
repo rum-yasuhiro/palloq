@@ -32,7 +32,7 @@ from qiskit.transpiler.preset_passmanagers import (level_0_pass_manager,
                                                    level_3_pass_manager)
 
 from qiskit.compiler import transpile
-from palloq import multi_pass_manager
+from palloq.transpiler.preset_passmanagers import multi_pass_manager
 
 
 logger = logging.getLogger(__name__)
