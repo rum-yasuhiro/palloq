@@ -117,7 +117,6 @@ def experiment():
                   "lpn_n5",
                   "qaoa_n3",
                   "qec_en_n5",
-                  "qec_sm_n5",
                   "qft_n4",
                   "qrng_n4",
                   "quantumwalks_n2",
@@ -129,7 +128,7 @@ def experiment():
                   "wstate_n3"]
     qcircuit = PrepareQASMBench(qasm_bench, "qasmbench.pickle").qc_list()
     # 1. compose_circuits
-    mcircuit = compose_circuits(qcircuit, MCC, 27, 200000, DurationTimeCost)
+    mcircuit = compose_circuits(qcircuit, MCC, 27, 100000, DurationTimeCost)
     rcircuit = compose_circuits(qcircuit, MCC_random, 27, None, None)
     # 2. compile circuits
     qc = multicompile_circuits(mcircuit)
