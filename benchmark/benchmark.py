@@ -99,6 +99,13 @@ of multicircuit composer")
         job = execute(qc, backend=self.backend)
         return job.result().get_counts(qc)
 
+    def _execute_sim(self, qc):
+        """
+        Execution on the qasm_simulator
+        """
+        job = execute(qc, backend=Aer.get_backend("qasm_simulator"))
+        return job.result().get_counts(qc)
+
     def run(self) -> QuantumCircuit:
         """
         Compose several circuit into one circuit and compile it.
@@ -202,6 +209,7 @@ neither of them are None is fine.")
                 _log.info(f"Evaluaiton Result with {self._metric.__name__}")
 
 
+
 class QCEnv:
     def __init__(self):
         pass
@@ -213,11 +221,13 @@ def kd(prob_distA: List,
     p2 = np.array(prob_distB) + 1e-10
     return sum(p1 * np.log(p1/p2))
 
+
 def jsd(prob_distA, prob_distB):
     """
     Jensen Shanon Divergence
     """
     pass
+
 
 if __name__ == "__main__":
     # preparer circuits
@@ -241,13 +251,15 @@ if __name__ == "__main__":
     bench = MCCBench(circuits=qcs, backend=backend)
 
     # set composer and compiler
-    bench.set_composer(MCC_dp)
+    bench.set_composer(MCC(cost_function=cost_func))
     bench.set_compiler(multi_transpile)
 
     # evaluate with circuit datasets
     # with tracking all info level log
     bench.evaluate(track=True)
-    # TODO dazai: 
+    # TODO dazai:
     # 1. get result
     # 2. js, norm, fidelity, evaluate
     bench.summary()
+    print(bench.results)
+    # Single
