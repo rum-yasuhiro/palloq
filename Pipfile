@@ -11,6 +11,7 @@ qiskit = "*"
 pytest = "*"
 gspread = "*"
 oauth2client = "*"
+matplotlib = "*"
 
 [requires]
 python_version = "3.8"

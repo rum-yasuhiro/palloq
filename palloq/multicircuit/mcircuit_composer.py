@@ -163,6 +163,7 @@ class MCC_dp(MultiCircuitComposer):
     def __init__(self,
                  qcircuits: List[QuantumCircuit],
                  device_size: int,
+                 offset: int,
                  eval_func=esp) -> None:
 
         # The number of qubits in total
@@ -186,6 +187,7 @@ must be Quantum Circuit")
         self.optimized_circuits = []
         # function that evaluate circuit
         self.eval_func = eval_func
+        self.offset = offset
 
     def compose(self) -> None:
         """
@@ -196,7 +198,7 @@ must be Quantum Circuit")
         """
         # 0. size of total quantum circuits
         n = len(self.qcircuits)
-        W = self._device_size
+        W = self._device_size - self.offset
 
         # 1. The number of qubits in one circuit
         # corresonds to the weight for it
@@ -277,7 +279,7 @@ class MCC_random(MultiCircuitComposer):
     def __init__(self,
                  qcircuits: List[QuantumCircuit],
                  device_size: int,
-                 threshold: int,
+                 space: int,
                  eval_func=esp) -> None:
 
         # The number of qubits in total
@@ -301,6 +303,8 @@ must be Quantum Circuit")
         self.optimized_circuits = []
         # function that evaluate circuit
         self.eval_func = eval_func
+        # space 
+        self._space = space
 
     def compose(self) -> None:
         """
@@ -313,8 +317,9 @@ must be Quantum Circuit")
         qcs = []
         nq = 0
         for iq, qc in enumerate(self.qcircuits):
+            self.qcircuits.pop(iq)
             nq += qc.num_qubits
-            if nq > self._device_size:
+            if nq > self._device_size - self._space:
                 break
             indices.append(iq)
             qcs.append(qc)
