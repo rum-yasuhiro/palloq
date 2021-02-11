@@ -189,6 +189,9 @@ must be Quantum Circuit")
         self.eval_func = eval_func
         self.offset = offset
 
+        # average depth
+        self._ave_depth = np.mean([qc.depth() for qc in self.qcircuits])
+
     def compose(self) -> None:
         """
         optimize circuit conbination based on just single circuit property.
@@ -211,6 +214,7 @@ must be Quantum Circuit")
         # TODO find proper evaluation method for one
         # circuit in multiple circuit
         values = [self.eval_func(qc, error_rates) for qc in self.qcircuits]
+        # values = [(abs(self._ave_depth - qc.depth())) for qc in self.qcircuits]
 
         # 2. prepare dp table and reverse table
         dp = [[0] * (W) for _ in range(n+1)]

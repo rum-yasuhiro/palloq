@@ -13,6 +13,7 @@ from concurrent.futures import ProcessPoolExecutor
 # internal
 from palloq.multicircuit.mcircuit_composer import MultiCircuitComposer, MCC, MCC_dp, MCC_random
 from palloq.compiler.multi_transpile import multi_transpile
+from palloq.utils.esp import esp
 
 from qiskit.test.mock import FakeToronto
 from utils import PrepareQASMBench
@@ -62,7 +63,7 @@ class MCCBench:
         # results
         self.results = {}
 
-    def set_composer(self, composer, *prop):
+    def set_composer(self, composer, offset=0, eval_func=esp):
         """
         Set a multi-circuit composer to fold up several different circiuts.
 
@@ -73,7 +74,10 @@ class MCCBench:
         if not issubclass(composer, MultiCircuitComposer):
             raise Exception("composer must be a subclass\
 of multicircuit composer")
-        self._composer = composer(self.qcircuits, self._device_size, *prop)
+        self._composer = composer(self.qcircuits,
+                                  self._device_size,
+                                  offset=offset,
+                                  eval_func=esp)
 
     def set_compiler(self, compiler, *prop):
         """
@@ -321,7 +325,7 @@ def dp_bench_single(offset):
     # set composer and compiler
     
     # print("offset", offset)
-    bench.set_composer(MCC_dp, offset)
+    bench.set_composer(MCC_dp, offset=offset)
     bench.set_compiler(multi_transpile)
 
     # evaluate with circuit datasets
@@ -344,7 +348,7 @@ def rd_bench_single(offset):
     # set composer and compiler
     
     # print("offset", offset)
-    bench.set_composer(MCC_random, offset)
+    bench.set_composer(MCC_random, offset=offset)
     bench.set_compiler(multi_transpile)
 
     # evaluate with circuit datasets
@@ -380,6 +384,30 @@ def rand_bench(offset):
         ave.append(_jsd)
     return np.mean(ave), np.std(ave), offset
 
+
+def dazai_bench():
+    IBMQ.load_account()
+    # prepare benchmark environments
+    provider = IBMQ.get_provider(hub='ibm-q-utokyo',
+                                 group='keio-internal',
+                                 project='keio-students')
+    backend = provider.get_backend("ibmq_sydney")
+    # backend = FakeToronto()
+    qcs = qcircuits(2)
+    bench = MCCBench(circuits=qcs, backend=backend, shots=8192)
+    # set composer and compiler
+    
+    # dazai function
+    # cost_func = 
+    # print("offset", offset)
+    bench.set_composer(MCC_dp, offset=0, cost_func=cost_func)
+    bench.set_compiler(multi_transpile)
+
+    # evaluate with circuit datasets
+    # with tracking all info level log
+    bench.evaluate(track=False)
+    _jsd = bench.summary()
+    return _jsd
 
 
 if __name__ == "__main__":
