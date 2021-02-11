@@ -183,7 +183,7 @@ neither of them are None is fine.")
         if len(self.qcircuits) > 0:
             raise Exception(f"Something went wrong.\
 {len(self.qcircuits)} circuits remain. ")
-        # print(_c)
+        print("count", _c)
 
     def _parse_count(self, count):
         """
@@ -213,12 +213,12 @@ neither of them are None is fine.")
         pst = 0
         for label, count in sim_count.items():
             # label, count
-            _success_rate = 0
+            _s = 0
             if count != 0:
                 emp_c = emp_count.get(label, 0)
                 _s = emp_c/count
-                _success_rate = _s if _s <= 1 else 0
-            pst += _success_rate
+                # _success_rate = _s if _s <= 1 else 0
+            pst += _s
         return pst
 
     
@@ -308,6 +308,52 @@ def dp_bench(offset):
     return np.mean(ave), np.std(ave), offset
 
 
+def dp_bench_single(offset):
+    IBMQ.load_account()
+    # prepare benchmark environments
+    provider = IBMQ.get_provider(hub='ibm-q-utokyo',
+                                 group='keio-internal',
+                                 project='keio-students')
+    backend = provider.get_backend("ibmq_sydney")
+    # backend = FakeToronto()
+    qcs = qcircuits(2)
+    bench = MCCBench(circuits=qcs, backend=backend, shots=8192)
+    # set composer and compiler
+    
+    # print("offset", offset)
+    bench.set_composer(MCC_dp, offset)
+    bench.set_compiler(multi_transpile)
+
+    # evaluate with circuit datasets
+    # with tracking all info level log
+    bench.evaluate(track=False)
+    _jsd = bench.summary()
+    return _jsd
+
+
+def rd_bench_single(offset):
+    IBMQ.load_account()
+    # prepare benchmark environments
+    provider = IBMQ.get_provider(hub='ibm-q-utokyo',
+                                 group='keio-internal',
+                                 project='keio-students')
+    backend = provider.get_backend("ibmq_sydney")
+    # backend = FakeToronto()
+    qcs = qcircuits(2)
+    bench = MCCBench(circuits=qcs, backend=backend, shots=8192)
+    # set composer and compiler
+    
+    # print("offset", offset)
+    bench.set_composer(MCC_random, offset)
+    bench.set_compiler(multi_transpile)
+
+    # evaluate with circuit datasets
+    # with tracking all info level log
+    bench.evaluate(track=False)
+    _jsd = bench.summary()
+    return _jsd
+
+
 def rand_bench(offset):
     ave = []
     IBMQ.load_account()
@@ -343,28 +389,33 @@ if __name__ == "__main__":
     # start process
     max_workers = None
     offsets = [i for i in range(5)]
-    
     # 
-    dp_qualities = []
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        for quality, std, offset in executor.map(dp_bench, offsets):
-            dp_qualities[offset] = [quality, std]
+    # dp_qualities = {}
+    # with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    #     for quality, std, offset in executor.map(dp_bench, offsets):
+    #         dp_qualities[offset] = [quality, std]
 
-    # for of in offsets:
-    #     quality, std = dp_bench(of)
-    #     dp_qualities[of] = [quality, std]
-    print("dp", dp_qualities)
-    
-    rand_qualities = []
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        for quality, std, offset in executor.map(rand_bench, offsets):
-            rand_qualities[offset] = [quality, std]
+    # # for of in offsets:
+    # #     quality, std = dp_bench(of)
+    # #     dp_qualities[of] = [quality, std]
+    # print("dp", dp_qualities)
+
+    space = 0
+    quality_dp = dp_bench_single(space)
+    print(quality_dp)
+    quality_rd = rd_bench_single(space)
+    print(quality_rd)
+
+    # rand_qualities = {}
+    # with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    #     for quality, std, offset in executor.map(rand_bench, offsets):
+    #         rand_qualities[offset] = [quality, std]
 
     # for of in offsets:
     #     quality, std = rand_bench(of)
     #     rand_qualities[of] = [quality, std]
     
-    print("random", rand_qualities)
+    # print("random", rand_qualities)
 
     # MCC_dp
     # data
