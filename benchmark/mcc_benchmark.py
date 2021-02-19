@@ -4,6 +4,8 @@ Benchmark environement for multi circuit composer and compiler
 import logging
 import numpy as np
 import copy
+import sys
+import random
 
 from typing import List
 from scipy.spatial.distance import jensenshannon as jsd
@@ -217,12 +219,12 @@ neither of them are None is fine.")
         pst = 0
         for label, count in sim_count.items():
             # label, count
-            _s = 0
+            _success_rate = 0
             if count != 0:
                 emp_c = emp_count.get(label, 0)
                 _s = emp_c/count
-                # _success_rate = _s if _s <= 1 else 0
-            pst += _s
+                _success_rate = _s if _s <= 1 else 0
+            pst += _success_rate
         return pst
 
     
@@ -343,7 +345,8 @@ def rd_bench_single(offset):
                                  project='keio-students')
     backend = provider.get_backend("ibmq_sydney")
     # backend = FakeToronto()
-    qcs = qcircuits(2)
+    _qcs = qcircuits(2)
+    qcs = random.sample(_qcs, len(_qcs))
     bench = MCCBench(circuits=qcs, backend=backend, shots=8192)
     # set composer and compiler
     
@@ -373,7 +376,7 @@ def rand_bench(offset):
         # set composer and compiler
         
         # print("offset", offset)
-        bench.set_composer(MCC_random, offset)
+        bench.set_composer(MCC_random, offset=offset)
         bench.set_compiler(multi_transpile)
 
         # evaluate with circuit datasets
@@ -416,7 +419,6 @@ if __name__ == "__main__":
     ave = []
     # start process
     max_workers = None
-    offsets = [i for i in range(5)]
     # 
     # dp_qualities = {}
     # with ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -427,12 +429,14 @@ if __name__ == "__main__":
     # #     quality, std = dp_bench(of)
     # #     dp_qualities[of] = [quality, std]
     # print("dp", dp_qualities)
-
-    space = 0
-    quality_dp = dp_bench_single(space)
-    print(quality_dp)
-    quality_rd = rd_bench_single(space)
-    print(quality_rd)
+    
+    space = int(sys.argv[1])
+    print("space", space)
+    for _ in range(10):
+        # quality_dp = dp_bench_single(space)
+        # print(quality_dp)
+        quality_rd = rd_bench_single(space)
+        print(quality_rd)
 
     # rand_qualities = {}
     # with ProcessPoolExecutor(max_workers=max_workers) as executor:
