@@ -7,7 +7,7 @@ from qiskit.providers.ibmq import IBMQBackend
 from qiskit.test.mock import FakeBackend
 from .util import choose_fakebackend
 
-def noisy_simulator(backend, xtalk_prop=None): 
+def noise_model(backend, xtalk_prop=None): 
     """
     args: 
         backend: backend_name(str) or IBMQBackend or FakeBackend
