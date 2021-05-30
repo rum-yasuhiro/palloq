@@ -1,13 +1,16 @@
-from typing import List, Optional, Tuple, Dict, Optional
+from typing import List, Optional, Tuple, Dict
+import numpy as np
 import networkx as nx
 from qiskit.compiler import transpile
 import qiskit.ignis.verification.randomized_benchmarking as rb
+from qiskit.providers.ibmq.job.exceptions import IBMQJobFailureError
 from palloq.utils import get_IBMQ_backend, pickle_load, pickle_dump
 
 
 def run_rb(
     backend_name,
     shots,
+    length_vector=[1, 10, 20, 50, 75, 100, 125, 150, 175, 200],
     nseeds=5,
     qubit_size: int = 2,
     jobfile_path=None,
@@ -29,7 +32,7 @@ def run_rb(
         backend=backend,
         twoQgate_pairs=adj_couples,
         rb_opts={
-            "length_vector": [1, 10, 20, 50, 75, 100, 125, 150, 175, 200],
+            "length_vector": length_vector,
             "nseeds": nseeds,
         },
         basis_gates=basis_gates,
@@ -134,25 +137,112 @@ def _run_rb(
     return job_dict
 
 
-def get_result(
-    backend_name,
+def calculate_result(
     jobfile_path,
-    twoQgate_date=None,
-    remove_list=None,
-    provider=None,
+    backend_name,
     reservations=False,
-):
+    rb_opts={
+        "length_vector": [1, 10, 20, 50, 75, 100, 125, 150, 175, 200],
+        "nseeds": 5,
+    },
+    save_path_epc=None,
+    save_path_epg=None,
+) -> List[Dict[str, float]]:
+    """
+    Args:
+        backend_name      : IBM Q backend name
+        rb_opts           : options for randomized banchmarking protocol as dict
+            length_vector : list of clifford length of each run
+            nseeds        : random seeds
+            rb_pattern    : combination of qubits
+        basis_gates       : basis_gates list
+        shots             : number of shots (by default 1024)
+        save_path_epc     : epc values saved here as picke file
+        save_path_epg     : epc values saved here as picke file
 
-    epc_dict, epg_dict = calculate_simrb(
-        jobfile_path,
+    Return:
+        Error / Clifford
+        Error / Gate
+
+    """
+    # Open job information from pickle file
+    simrb_dict = pickle_load(jobfile_path)
+
+    # get IBM Q backend
+    backend = get_IBMQ_backend(
         backend_name=backend_name,
-        provider=provider,
-        rb_opts={
-            "length_vector": [1, 10, 20, 50, 75, 100, 125, 150, 175, 200],
-            "nseeds": 1,
-        },
+        reservations=reservations,
     )
-    _save_base_xtalk(epc_dict, epg_dict, experiments_dir_name)
+
+    # define the dict
+    epc_dict = {}  # Error / Clifford
+    epg_dict = {}  # Error / Gate
+    for twoQconnection, pair_dict in simrb_dict.items():
+        print("#### start " + str(twoQconnection) + " #####")
+
+        try:
+            epc_dict[twoQconnection] = epc_dict[twoQconnection]
+            epg_dict[twoQconnection] = epg_dict[twoQconnection]
+        except KeyError:
+            epc_dict[twoQconnection] = {}
+            epg_dict[twoQconnection] = {}
+
+        # repeat num of Two Qubit connection
+        for pair, job_gpc_dict in pair_dict.items():
+
+            # retrieve the job from job_id and get gpc
+            jobid_list = job_gpc_dict.get("job_id")
+            result_list = []
+            for job_id in jobid_list:
+                try:
+                    _job = backend.retrieve_job(job_id)
+                    result_list.append(_job.result())
+                except IBMQJobFailureError:
+                    print("Job: ", job_id, " has failed")
+            gpc = job_gpc_dict.get("gpc")
+
+            # fitter
+            if twoQconnection == pair:
+                rb_pattern = [list(twoQconnection)]
+                xdata = np.array([rb_opts["length_vector"]])
+            else:
+                rb_pattern = [list(twoQconnection), list(pair)]
+                xdata = np.array(
+                    [
+                        rb_opts["length_vector"],
+                        rb_opts["length_vector"],
+                    ],
+                )
+
+            rbfit = rb.fitters.RBFitter(None, xdata, rb_pattern)
+            for result in result_list:
+                rbfit.add_data([result])
+
+            # Calculate epc and egp
+            epc = rbfit.fit[0]["epc"]
+            epg = rb.rb_utils.calculate_2q_epg(
+                gpc,
+                epc_2q=epc,
+                qubit_pair=list(twoQconnection),
+            )
+
+            # Add epc and epg to each dict
+            epc_dict[twoQconnection][pair] = epc
+            epg_dict[twoQconnection][pair] = epg
+
+            print("### calculated " + str(rb_pattern) + " ###")
+
+    if save_path_epc:
+        pickle_dump(
+            obj=epc_dict,
+            path=save_path_epc,
+        )
+    if save_path_epg:
+        pickle_dump(
+            obj=epg_dict,
+            path=save_path_epg,
+        )
+    return epc_dict, epg_dict
 
 
 def find_adjacent_couples(coupling_map: List[List[int]]) -> dict:
@@ -208,9 +298,33 @@ def find_adjacent_couples(coupling_map: List[List[int]]) -> dict:
     return adj_dict
 
 
-def path_to_jobfile(job_dir: str, backend_name: str, date, num_qubits: int):
+def path_to_jobfile(
+    job_dir: str,
+    backend_name: str,
+    date,
+    num_qubits: int,
+):
     jobfile_path = (
         job_dir
+        + "/"
+        + str(date)
+        + "_"
+        + backend_name
+        + "_"
+        + str(num_qubits)
+        + "qubit-gate_1hop.pickle"
+    )
+    return jobfile_path
+
+
+def path_to_resultfile(
+    result_dir: str,
+    backend_name: str,
+    date,
+    num_qubits: int,
+):
+    jobfile_path = (
+        result_dir
         + "/"
         + str(date)
         + "_"
