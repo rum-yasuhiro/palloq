@@ -13,6 +13,8 @@ pytest = "*"
 gspread = "*"
 oauth2client = "*"
 matplotlib = "*"
+networkx = "*"
+tqdm = "*"
 
 [requires]
 python_version = "3.8"
