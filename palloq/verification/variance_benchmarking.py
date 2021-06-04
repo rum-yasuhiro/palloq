@@ -1,21 +1,26 @@
-from typing import List, Tuple
+from typing import List, Dict
+from tqdm import tqdm
 
 import qiskit.ignis.verification.randomized_benchmarking as rb
 from qiskit.providers.ibmq.ibmqbackend import IBMQBackend
 from qiskit.providers.ibmq.job.ibmqjob import IBMQJob
 from qiskit.compiler import transpile
 
+from palloq.utils import get_IBMQ_backend
+
 
 def run_rb(
     backend,
     shots,
     repeat: int,
+    qubit_size: int,
     length_vector: List[int] = [1, 10, 20, 50, 75, 100, 125, 150, 175, 200],
     nseeds: int = 1,
+    run_on_simulator=False,
 ):
     """
     Args:
-        backend: Backend device you want to run
+        backend: IBMQBackend you want to run
 
     The roll of `nseed` and `repeat` is same (rb_seeds).
     But in this function, `nseed` is used to create set of rb
@@ -24,9 +29,9 @@ def run_rb(
     sets of target qubits, and then repeat to create and send.
     e.g.
         `nseeds = n`
-            _jobs_1 = [job_1-1, job_1-2, job_1-3, ..., job_1-n]
+            _jobs_1 = ([job_1-1, job_1-2, job_1-3, ..., job_1-n], gpc)
             ...
-            _jobs_m = [job_m-1, job_m-2, job_m-3, ..., job_m-n]
+            _jobs_m = ([job_m-1, job_m-2, job_m-3, ..., job_m-n], gpc)
 
             then,
 
@@ -34,9 +39,9 @@ def run_rb(
 
 
         `repeat = n`
-            _jobsets_1 = [[job_1-1], [job_2-1], [job_3-1], ..., [job_m-1]]
+            _jobsets_1 = [([job_1-1], gpc), ([job_2-1], gpc), ([job_3-1], gpc), ..., ([job_m-1], gpc)]
             ...
-            _jobsets_n = [[job_1-n], [job_2-n], [job_3-n], ..., [job_m-n]]
+            _jobsets_n = [([job_1-n], gpc), ([job_2-n], gpc), ([job_3-n], gpc), ..., ([job_m-n], gpc)]
 
         In both cases, `job_i-j` object is `Tuple[IBMQJob, List[gpc]]`.
         `gpc` is gate per clifford represented as dict.
@@ -49,29 +54,77 @@ def run_rb(
     """
 
     # prepare rb pattern based on backend device.
+    rb_patterns = rb_pattern(backend, num_set_qubits=qubit_size)
+    simrb_patterns = sim_rb_pattern(backend, num_set_qubits=qubit_size)
+
+    """FIXME
+    run_on_simulatorはあとで消す。
+    """
+    if run_on_simulator:
+        backend = get_IBMQ_backend("ibmq_qasm_simulator")
 
     # run simRB
+    job_simrb_1 = []
+    for _ in tqdm(range(repeat)):
+        jobsets = []
+        for rb_qubits in tqdm(simrb_patterns):
+            jobs = _run_RB(
+                backend=backend,
+                shots=shots,
+                length_vector=length_vector,
+                nseeds=nseeds,
+                rb_pattern=rb_qubits,
+            )
+            jobsets.append(jobs)
+        job_simrb_1.append(jobsets)
 
     # run individual RB
-    for i in range(repeat):
-        _run_RB(
-            backend,
-            shots,
-            length_vector,
-            nseeds,
-            rb_pattern,
-        )
+    job_rb = []
+    for _ in tqdm(range(repeat)):
+        jobsets = []
+        for rb_qubits in tqdm(rb_patterns):
+            jobs = _run_RB(
+                backend=backend,
+                shots=shots,
+                length_vector=length_vector,
+                nseeds=nseeds,
+                rb_pattern=rb_qubits,
+            )
+            jobsets.append(jobs)
+        job_rb.append(jobsets)
 
     # run simRB again
+    job_simrb_2 = []
+    for _ in tqdm(range(repeat)):
+        jobsets = []
+        for rb_qubits in tqdm(simrb_patterns):
+            jobs = _run_RB(
+                backend=backend,
+                shots=shots,
+                length_vector=length_vector,
+                nseeds=nseeds,
+                rb_pattern=rb_qubits,
+            )
+            jobsets.append(jobs)
+        job_simrb_2.append(jobsets)
 
-    return
+    return job_rb, job_simrb_1, job_simrb_2
 
 
-def results(job):
+def calculate_rb(jobs, backend):
     """
     Args:
         job: IBMQ job
     """
+
+    return
+
+
+def calculate_simrb(
+    jobs1,
+    jobs2,
+    backend: IBMQBackend,
+):
 
     return
 
@@ -84,6 +137,9 @@ def rb_pattern(
     if num_set_qubits == 1:
         num_qubits = num_qubits = backend.configuration().num_qubits
         pattern_set = [[[i]] for i in range(num_qubits)]
+    else:
+        raise NotImplementedError("qubit_size = 1 以外はまだ実装されてない。")
+
     return pattern_set
 
 
@@ -99,6 +155,8 @@ def sim_rb_pattern(
     if num_set_qubits == 1:
         num_qubits = backend.configuration().num_qubits
         pattern_set = [[[i] for i in range(num_qubits)]]
+    else:
+        raise NotImplementedError("qubit_size = 1 以外はまだ実装されてない。")
 
     return pattern_set
 
@@ -109,7 +167,7 @@ def _run_RB(
     length_vector: List[int],
     nseeds: int,
     rb_pattern: List[List[int]],
-) -> List[Tuple[IBMQJob, List[dict]]]:
+) -> List[Dict[str, dict]]:
     """Function for Randomized Benchmarking"""
     rb_opts = {
         "length_vector": length_vector,
@@ -132,18 +190,18 @@ def _run_RB(
         )
     gpcs.append(gates_per_cliff)
 
-    jobs = []
-    for rb_seed, rb_circ_i in enumerate(rb_circs):
-
+    _jobs = []
+    for seed, rb_circ_i in tqdm(enumerate(rb_circs)):
         # run rb on backend
         _job = backend.run(
             circuits=rb_circ_i,
             shots=shots,
         )
-        job = (_job, gpcs)
-        jobs.append(job)
+        jobid = _job.job_id()
 
-    return jobs
+        _jobs.append(jobid)
+
+    return (_jobs,)
 
 
 def _simRB(rb_pattern_set: List[List[List[int]]]):
@@ -151,3 +209,41 @@ def _simRB(rb_pattern_set: List[List[List[int]]]):
     for rb_pattern in rb_pattern_set:
         pass
     return
+
+
+def path_to_jobfile(
+    job_dir: str,
+    backend_name: str,
+    date,
+    num_qubits: int,
+):
+    jobfile_path = (
+        job_dir
+        + "/"
+        + str(date)
+        + "_"
+        + backend_name
+        + "_"
+        + str(num_qubits)
+        + "qubit-gate_variance.pickle"
+    )
+    return jobfile_path
+
+
+def path_to_resultfile(
+    result_dir: str,
+    backend_name: str,
+    date,
+    num_qubits: int,
+):
+    jobfile_path = (
+        result_dir
+        + "/"
+        + str(date)
+        + "_"
+        + backend_name
+        + "_"
+        + str(num_qubits)
+        + "qubit-gate_variance.pickle"
+    )
+    return jobfile_path
