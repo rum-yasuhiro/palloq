@@ -33,49 +33,49 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
     def _initialize_backend_prop(self):
         """Extract readout and CNOT errors and compute swap costs."""
         backend_prop = self.backend_prop
-        print("here!")
+        idx_list = []
         for ginfo in backend_prop.gates:
-            if ginfo.gate == 'cx':
+            if ginfo.gate == "cx":
                 for item in ginfo.parameters:
-                    if item.name == 'gate_error':
+                    if item.name == "gate_error":
                         g_reliab = 1.0 - item.value
                         break
                     g_reliab = 1.0
                 swap_reliab = pow(g_reliab, 3)
                 # convert swap reliability to edge weight
                 # for the Floyd-Warshall shortest weighted paths algorithm
-                swap_cost = - \
-                    math.log(swap_reliab) if swap_reliab != 0 else math.inf
+                swap_cost = -math.log(swap_reliab) if swap_reliab != 0 else math.inf
                 self.swap_graph.add_edge(
-                    ginfo.qubits[0], ginfo.qubits[1], weight=swap_cost)
+                    ginfo.qubits[0], ginfo.qubits[1], weight=swap_cost
+                )
                 self.swap_graph.add_edge(
-                    ginfo.qubits[1], ginfo.qubits[0], weight=swap_cost)
-                self.cx_reliability[(
-                    ginfo.qubits[0], ginfo.qubits[1])] = g_reliab
+                    ginfo.qubits[1], ginfo.qubits[0], weight=swap_cost
+                )
+                self.cx_reliability[(ginfo.qubits[0], ginfo.qubits[1])] = g_reliab
                 self.gate_list.append((ginfo.qubits[0], ginfo.qubits[1]))
-            idx_list = []
-            if gate.gate == 'u2':
-                idx = gate.qubits[0]
-                idx_list.append(idx)
-        print("idx_list: ", idx_list)
 
-        for q, idx in zip(backend_prop.qubits, idx_list):
+        idx = 0
+        for q in backend_prop.qubits:
             for nduv in q:
-                if nduv.name == 'readout_error':
-                    print("idx: ", idx)
+                if nduv.name == "readout_error":
                     self.readout_reliability[idx] = 1.0 - nduv.value
                     self.available_hw_qubits.append(idx)
-
+            idx += 1
         self._update_edge_prop()
 
     def _update_edge_prop(self):
         for edge in self.cx_reliability:
-            self.gate_reliability[edge] = self.cx_reliability[edge] * \
-                self.readout_reliability[edge[0]] * \
-                self.readout_reliability[edge[1]]
-        self.swap_paths, swap_reliabs_temp = nx.algorithms.shortest_paths.dense.\
-            floyd_warshall_predecessor_and_distance(
-                self.swap_graph, weight='weight')
+            self.gate_reliability[edge] = (
+                self.cx_reliability[edge]
+                * self.readout_reliability[edge[0]]
+                * self.readout_reliability[edge[1]]
+            )
+        (
+            self.swap_paths,
+            swap_reliabs_temp,
+        ) = nx.algorithms.shortest_paths.dense.floyd_warshall_predecessor_and_distance(
+            self.swap_graph, weight="weight"
+        )
         for i in swap_reliabs_temp:
             self.swap_reliabs[i] = {}
             for j in swap_reliabs_temp[i]:
@@ -87,11 +87,15 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                     best_reliab = 0.0
                     for n in self.swap_graph.neighbors(j):
                         if (n, j) in self.cx_reliability:
-                            reliab = math.exp(-swap_reliabs_temp[i][n]) * \
-                                self.cx_reliability[(n, j)]
+                            reliab = (
+                                math.exp(-swap_reliabs_temp[i][n])
+                                * self.cx_reliability[(n, j)]
+                            )
                         else:
-                            reliab = math.exp(-swap_reliabs_temp[i][n]) * \
-                                self.cx_reliability[(j, n)]
+                            reliab = (
+                                math.exp(-swap_reliabs_temp[i][n])
+                                * self.cx_reliability[(j, n)]
+                            )
                         if reliab > best_reliab:
                             best_reliab = reliab
                     self.swap_reliabs[i][j] = best_reliab
@@ -100,15 +104,11 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
         q0 = min(edge[0], edge[1])
         q1 = max(edge[0], edge[1])
         edge = (q0, q1)
-        if self.crosstalk_prop is not None and edge in self.crosstalk_prop and edge not in self.crosstalk_edges:
-            #####################################
-            # print("######## it works #########")
-            # print(self.crosstalk_edges)
-            # print("edge: ", edge)
-            # print("gate_reliab", self.gate_reliability)
-            #####################################
-            for xtalk_edge in self.crosstalk_prop[edge]:
-                cx_err = (1 - self.cx_reliability[xtalk_edge])
+        if self.crosstalk_prop and edge in self.crosstalk_prop:
+            print(self.crosstalk_prop[edge])
+            for xtalk_edge, crosstalk_ratio in self.crosstalk_prop[edge].items():
+                print(xtalk_edge)
+                cx_err = 1 - self.cx_reliability[xtalk_edge]
                 #################
                 # print(cx_err)
                 ################
@@ -119,18 +119,19 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                 """
                 try:
                     crosstalk_ratio = max(
-                        self.crosstalk_prop[xtalk_edge][edge], self.crosstalk_prop[edge][xtalk_edge])
+                        self.crosstalk_prop[xtalk_edge][edge],
+                        crosstalk_ratio,
+                    )
                 except:
-                    crosstalk_ratio = self.crosstalk_prop[edge][xtalk_edge]
+                    pass
                 _tmp_cx_err = cx_err
-                if crosstalk_ratio = > 1:
+                if crosstalk_ratio >= 1:
                     cx_err *= crosstalk_ratio
                 cx_err = cx_err if cx_err <= 0.9999 else 0.9999
                 #################
-                print("Updated", edge, " from ", _tmp_cx_err, " to ", cx_err)
+                print("Updated", edge, ':', xtalk_edge, " from ", _tmp_cx_err, " to ", cx_err)
                 ################
                 self.cx_reliability[xtalk_edge] = 1 - cx_err
-                cx_err_edge = (1 - self.cx_reliability[edge])
 
             self.crosstalk_edges.append(edge)
             self._update_edge_prop()
@@ -171,11 +172,12 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
             max_q = max(qid1, qid2)
             edge_weight = 1
             if prog_graph.has_edge(min_q, max_q):
-                edge_weight = prog_graph[min_q][max_q]['weight'] + 1
+                edge_weight = prog_graph[min_q][max_q]["weight"] + 1
             prog_graph.add_edge(min_q, max_q, weight=edge_weight)
 
-        prog_subgraphs = list(prog_graph.subgraph(c)
-                              for c in nx.connected_components(prog_graph))
+        prog_subgraphs = list(
+            prog_graph.subgraph(c) for c in nx.connected_components(prog_graph)
+        )
         self.prog_graphs = self._sort_graphs(prog_subgraphs)
         return idx
 
@@ -187,9 +189,11 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
         graph_volumes = {}
         order = []
         for i, graph in enumerate(graph_list):
-            graph_volumes[i] = graph.size(
-                weight="weight") * graph.number_of_nodes()
-        return [graph_list[id_kq[0]] for id_kq in sorted(graph_volumes.items(), key=lambda x: x[1], reverse=True)]
+            graph_volumes[i] = graph.size(weight="weight") * graph.number_of_nodes()
+        return [
+            graph_list[id_kq[0]]
+            for id_kq in sorted(graph_volumes.items(), key=lambda x: x[1], reverse=True)
+        ]
 
     def _qarg_to_id(self, qubit):
         """Convert qarg with name and value to an integer id."""
@@ -243,50 +247,26 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                 best_hw_qubit = hw_qubit
         return best_hw_qubit
 
-    # def _compose_dag(self, dag_list):
-    #     """Compose each dag and return new multitask dag"""
+    def _correct_xtalk_prop_keys(self):
+        corrected_prop = {}
+        for twoQcon, xtalk_dict in self.crosstalk_prop.items(): 
+            corrected_dict = {}
+            corrected_twoQcon = (min(twoQcon[0], twoQcon[1]), max(twoQcon[0], twoQcon[1]))
+            for pair, xtalk_ratio in xtalk_dict.items(): 
+                corrected_pair = (min(pair[0], pair[1]), max(pair[0], pair[1]))
+                corrected_dict[corrected_pair] = xtalk_ratio
+            corrected_prop[corrected_twoQcon] = corrected_dict
+        self.crosstalk_prop = corrected_prop
 
-    #     """FIXME 下記と同様
-    #     # name_list = []
-    #     """
-    #     bit_counter = 0
-    #     for i, dag in enumerate(dag_list):
-    #         register_size = dag.num_qubits()
-    #         """FIXME
-    #         Proble:m
-    #             register_name: register nameを定義すると、outputの `new_dag` に対して `dag_to_circuit()`
-    #             を実行した時、
-    #             qiskit.circuit.exceptions.CircuitError: 'register name "定義した名前" already exists'
-    #             が発生するため、任意のレジスター名をつけることができない
-
-    #         Code:
-    #             reg_name_tmp = dag.qubits[0].register.name
-    #             register_name = reg_name_tmp if (reg_name_tmp not in name_list) and (
-    #                 not reg_name_tmp == 'q') else None
-    #             name_list.append(register_name)
-    #         """
-    #         # 上記FIXME部分はNoneで対応中: 2020 / 08 / 16
-    #         register_name = None
-    #         ########################
-
-    #         qr = QuantumRegister(size=register_size, name=register_name)
-    #         cr = ClassicalRegister(size=register_size, name=register_name)
-    #         self.composed_multidag.add_qreg(qr)
-    #         self.composed_multidag.add_creg(cr)
-    #         qubits = self.composed_multidag.qubits[bit_counter:bit_counter+register_size]
-    #         clbits = self.composed_multidag.clbits[bit_counter:bit_counter+register_size]
-    #         self.composed_multidag.compose(dag, qubits=qubits, clbits=clbits)
-
-    #         bit_counter += register_size
-    #     return self.composed_multidag
 
     def run(self, dag):
         """Run the CrosstalkAdaptiveLayout pass on `list of dag`."""
-        self._initialize_backensd_prop()
+        self._correct_xtalk_prop_keys()
+        self._initialize_backend_prop()
         num_qubits = self._create_program_graphs(dag=dag)
 
         if num_qubits > len(self.available_hw_qubits):
-            raise TranspilerError('Number of qubits greater than device.')
+            raise TranspilerError("Number of qubits greater than device.")
 
         for hwid, q in enumerate(dag.qubits):
             self.qarg_to_id[q.register.name + str(q.index)] = hwid
@@ -297,10 +277,11 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
             """NEXT STEP!
             ここに、Multi-programmingするかどうかの判定関数を噛ませる
             """
-            self.pending_program_edges = sorted(prog_graph.edges(data=True),
-                                                key=lambda x: [
-                x[2]['weight'], -x[0], -x[1]],
-                reverse=True)
+            self.pending_program_edges = sorted(
+                prog_graph.edges(data=True),
+                key=lambda x: [x[2]["weight"], -x[0], -x[1]],
+                reverse=True,
+            )
 
             while self.pending_program_edges:
 
@@ -310,44 +291,53 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                 if (not q1_mapped) and (not q2_mapped):
                     best_hw_edge = self._select_best_remaining_cx()
                     if best_hw_edge is None:
-                        raise TranspilerError("CNOT({}, {}) could not be placed "
-                                              "in selected device.".format(edge[0], edge[1]))
+                        raise TranspilerError(
+                            "CNOT({}, {}) could not be placed "
+                            "in selected device.".format(edge[0], edge[1])
+                        )
                     self.prog2hw[edge[0]] = best_hw_edge[0]
                     self.prog2hw[edge[1]] = best_hw_edge[1]
                     self.available_hw_qubits.remove(best_hw_edge[0])
                     self.available_hw_qubits.remove(best_hw_edge[1])
-                    # update gate_reliability with considering about xtalk
-                    print(
-                        "###################### update here!! #########################")
+
                     self._crosstalk_backend_prop(edge=best_hw_edge)
                 elif not q1_mapped:
                     best_hw_qubit = self._select_best_remaining_qubit(
-                        edge[0], prog_graph)
+                        edge[0], prog_graph
+                    )
                     if best_hw_qubit is None:
                         raise TranspilerError(
                             "CNOT({}, {}) could not be placed in selected device. "
-                            "No qubit near qr[{}] available".format(edge[0], edge[1], edge[0]))
+                            "No qubit near qr[{}] available".format(
+                                edge[0], edge[1], edge[0]
+                            )
+                        )
                     self.prog2hw[edge[0]] = best_hw_qubit
-
                     self.available_hw_qubits.remove(best_hw_qubit)
-                    # update gate_reliability with considering about xtalk
-                    print(
-                        "###################### update here2!! #########################")
                     self._crosstalk_backend_prop(
-                        edge=(self.prog2hw[edge[1]], best_hw_qubit))
+                        edge=(self.prog2hw[edge[1]], best_hw_qubit)
+                    )
                 else:
                     best_hw_qubit = self._select_best_remaining_qubit(
-                        edge[1], prog_graph)
+                        edge[1], prog_graph
+                    )
                     if best_hw_qubit is None:
                         raise TranspilerError(
                             "CNOT({}, {}) could not be placed in selected device. "
-                            "No qubit near qr[{}] available".format(edge[0], edge[1], edge[1]))
+                            "No qubit near qr[{}] available".format(
+                                edge[0], edge[1], edge[1]
+                            )
+                        )
                     self.prog2hw[edge[1]] = best_hw_qubit
                     self.available_hw_qubits.remove(best_hw_qubit)
                     self._crosstalk_backend_prop(
-                        edge=(self.prog2hw[edge[0]], best_hw_qubit))
-                new_edges = [x for x in self.pending_program_edges
-                             if not (x[0] in self.prog2hw and x[1] in self.prog2hw)]
+                        edge=(self.prog2hw[edge[0]], best_hw_qubit)
+                    )
+                new_edges = [
+                    x
+                    for x in self.pending_program_edges
+                    if not (x[0] in self.prog2hw and x[1] in self.prog2hw)
+                ]
 
                 self.pending_program_edges = new_edges
 
@@ -363,4 +353,4 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
             # layout[q] = hwid
             layout_dict[q] = hwid
             print("prog: {} , hw: {}".format(q, hwid))
-        self.property_set['layout'] = Layout(input_dict=layout_dict)
+        self.property_set["layout"] = Layout(input_dict=layout_dict)
