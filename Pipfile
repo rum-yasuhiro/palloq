@@ -5,6 +5,7 @@ verify_ssl = true
 
 [dev-packages]
 flake8 = "*"
+black = "*"
 
 [packages]
 qiskit = "*"
@@ -12,6 +13,12 @@ pytest = "*"
 gspread = "*"
 oauth2client = "*"
 matplotlib = "*"
+networkx = "*"
+tqdm = "*"
+seaborn = "*"
 
 [requires]
 python_version = "3.8"
+
+[pipenv]
+allow_prereleases = true
