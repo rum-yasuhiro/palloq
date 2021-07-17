@@ -10,7 +10,7 @@ from palloq.utils import get_IBMQ_backend, pickle_load, pickle_dump
 def run_rb(
     backend_name,
     shots,
-    length_vector=[1, 10, 20, 50, 75, 100, 125, 150, 175, 200],
+    length_vector=[1, 10, 20, 50, 75, 100, 125, 150, 175, 200],/
     nseeds=5,
     qubit_size: int = 2,
     jobfile_path=None,
@@ -117,7 +117,7 @@ def _run_rb(
             )
 
             # add the gpc to the dict
-            job_dict[twoQconnection][pair]["gpc"] = gates_per_cliff
+            job_dict[twoQconnection][pair]["q"] = gates_per_cliff
 
             # execute jobs
             print("###### start executing the job " + str(rb_pattern) + " #####")

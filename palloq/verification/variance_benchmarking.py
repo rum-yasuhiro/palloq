@@ -1,7 +1,15 @@
 from typing import Tuple, List, Dict, Union
-from tqdm import tqdm
 
+from pandas.core.frame import DataFrame
+from tqdm import tqdm
+import pandas as pd
+import seaborn as sns
+
+from pprint import pprint
+
+# import qiskit tools
 import qiskit.ignis.verification.randomized_benchmarking as rb
+from qiskit.ignis.verification import calculate_1q_epg, calculate_2q_epg
 from qiskit.providers.ibmq.ibmqbackend import IBMQBackend
 from qiskit.test.mock import FakeBackend
 from qiskit.circuit import QuantumCircuit
@@ -56,7 +64,7 @@ def prepare_rb(
     expsets_list = [[] for _ in range(repeat)]
     for rb_qubits in tqdm(rb_pattern_list):
         exp_tot = nseeds * repeat
-        exp_list, epgs = _prepare_rb(
+        exp_list, epgs, xdata, rb_pattern = _prepare_rb(
             fake_backend,
             length_vector,
             nseeds=exp_tot,
@@ -64,7 +72,7 @@ def prepare_rb(
             convert_pulse=convert_pulse,
         )
         for i, _counter in enumerate(range(0, exp_tot, nseeds)):
-            exps_i = (exp_list[_counter : _counter + nseeds], epgs)
+            exps_i = (exp_list[_counter : _counter + nseeds], epgs, xdata, rb_pattern)
             expsets_list[i].append(exps_i)
 
     return expsets_list
@@ -83,16 +91,18 @@ def _prepare_rb(
         "rb_pattern": rb_pattern,
     }
     rb_circs, xdata = rb.randomized_benchmarking_seq(**rb_opts)
-    basis_gates = fake_backend.configuration().basis_gates
-    trb_circs = [transpile(_rb_circ, basis_gates=basis_gates) for _rb_circ in rb_circs]
 
     gpcs = {}
-    # Calculate gate per clifford (gcp)
+    trb_circs = [
+        transpile(_rb_circ, basis_gates=["id", "u1", "u2", "u3", "cx"])
+        for _rb_circ in rb_circs
+    ]
+    # Calculate gate per clifford (gpc)
     for _rb_seq, _qubits in zip(xdata, rb_pattern):
         gates_per_clifford = rb.rb_utils.gates_per_clifford(
             trb_circs,
             clifford_lengths=_rb_seq,
-            basis=basis_gates,
+            basis=["id", "u1", "u2", "u3", "cx"],
             qubits=_qubits,
         )
         _qubits = tuple(_qubits)
@@ -102,7 +112,12 @@ def _prepare_rb(
         sched = [schedule(_trb_circs, backend=fake_backend) for _trb_circs in trb_circs]
         return sched, gpcs
 
-    return trb_circs, gpcs
+    basis_gates = fake_backend.configuration().basis_gates
+    runnable_circs = [
+        transpile(_rb_circ, basis_gates=basis_gates) for _rb_circ in rb_circs
+    ]
+
+    return runnable_circs, gpcs, xdata, rb_pattern
 
 
 def run_rb(
@@ -159,7 +174,7 @@ def run_rb(
     for _repeat, _expset in tqdm(enumerate(rb_exps)):
         jobset = []
         for exps in tqdm(_expset):
-            _exps, gpc = exps
+            _exps, gpcs, xdata, rb_pattern = exps
             _jobs = []
             for _nseed, _exp in tqdm(enumerate(_exps)):
                 # run rb on backend
@@ -169,30 +184,127 @@ def run_rb(
                 )
                 jobid = _job.job_id()
                 _jobs.append(jobid)
-            jobs = (_jobs, gpc)
+            jobs = (_jobs, gpcs, xdata, rb_pattern)
             jobset.append(jobs)
         jobset_list.append(jobset)
 
     return jobset_list
 
 
-def calculate_rb(
+def calculate_rbfit(
     jobset_list: List[
         List[
             Tuple[
                 List[str],
                 Dict[Tuple[int], dict],
+                list,
+                list,
             ],
         ],
     ],
     backend: IBMQBackend,
-):
+) -> DataFrame:
     """
     Args:
-        jobset_list: IBMQ job
+        jobset_list: List[ <-- repeat
+            List[ <-- each experiments
+                Tuple[
+                    List[str], <-- list of job_id (str) for nseed
+                    Dict[Tuple[int], dict], <-- gpcs
+                ],
+            ],
+        ],
+        rb_type: RB or SimRB
     """
+    # list for fit object for each rb patterns
+    fitobjs = []
+    for _repeat, jobset in tqdm(enumerate(jobset_list)):
+        for ex_i, jobinfo in tqdm(enumerate(jobset)):
+            jobids, gpcs, xdata, rb_pattern = jobinfo  # unpack
+            if _repeat == 0:
+                # create fit object for each rb patterns at the very first time of repetition
+                rbfit = rb.fitters.RBFitter(None, xdata, rb_pattern)
+                fitobjs.append((rbfit, gpcs))
+            for nseed, jobid in enumerate(jobids):  # by default nseed = 1
+                try: 
+                    result = backend.retrieve_job(jobid).result()
+                except:
+                    print("Job %s is faild" % jobid)
+                    continue
+                # add sample data to every fit object to repeatedly
+                fitobjs[ex_i][0].add_data(result)  # fitobjs[ex_i][1] is rb_pattern
+    return fitobjs
 
-    return
+
+def fitobj_to_df(
+    fitobjs,
+    backend_name,
+    rb_type="RB",
+):
+    # Data frame for saving epg of physical qubits.
+    df = pd.DataFrame(
+        columns=["Qubit", "EPG", "EPC", "Backend", "RB Type"],
+        dtype=float,
+    )
+    for rbfit, gpcs in fitobjs:
+        """
+        RBFitter.fit is list of fit result of each component of rb_pattern
+        self._fit[patt_ind] = {'params': params, 'params_err': params_err,
+                               'epc': epc, 'epc_err': epc_err}
+        """
+        # calculate error per gate for every qubits in rb_pattern
+        for idx, gpc_info in enumerate(gpcs.items()):
+            qubits, gpc = gpc_info
+            try:
+                epc = rbfit.fit[idx]["epc"]
+            except:
+                print("Fitter object number %d is empty." % idx)
+                continue
+            if len(qubits) == 1:
+                epg = calculate_1q_epg(
+                    gate_per_cliff=gpc,
+                    epc_1q=epc,
+                    qubit=qubits[0],
+                )["u2"]
+                q_label = str(qubits[0])
+
+            elif len(qubits) == 2:
+                epg = calculate_2q_epg(
+                    gate_per_cliff=gpc,
+                    epc_2q=epc,
+                    qubit_pair=list(qubits),
+                    two_qubit_name="cx",
+                )
+                q0 = min(qubits[0], qubits[1])
+                q1 = max(qubits[0], qubits[1])
+                q_label = str((q0, q1))
+            df = df.append(
+                {
+                    "Qubit": q_label,
+                    "EPG": epg,
+                    "EPC": epc,
+                    "Backend": backend_name,
+                    "RB Type": rb_type,
+                },
+                ignore_index=True,
+            )
+    return df
+
+
+def plot_swam(df: DataFrame, save_path):
+    sns.set_theme(style="whitegrid", palette="muted")
+
+    # Plot distribution of error rates
+    sns_plot = sns.swarmplot(
+        data=df,
+        x="Backend",
+        y="EPG",
+        hue="RB Type",
+        dodge=True,
+    )
+    sns_plot.set(xlabel="", ylabel="Error rates")
+    fig = sns_plot.get_figure()
+    fig.savefig(save_path)
 
 
 def gen_rb_pattern(
@@ -204,17 +316,16 @@ def gen_rb_pattern(
         num_qubits = num_qubits = backend.configuration().num_qubits
         pattern_set = [[[i]] for i in range(num_qubits)]
     else:
-        """FIXME
-        ２量子ビット以降も実装する
-        """
-        raise NotImplementedError("qubit_size = 1 以外はまだ実装されてない。")
+        coupling_map = backend.configuration().coupling_map
+        pattern_set = [[coup] for coup in coupling_map if coup[0]<coup[1]]
 
     return pattern_set
 
 
 def gen_simrb_pattern(
     backend: Union[IBMQBackend, FakeBackend],
-    num_set_qubits: int = 1,
+    num_set_qubits: int,
+    rb_pattern: List[List[List[int]]],
 ) -> List[List[List[int]]]:
     """
     Args:
@@ -225,12 +336,28 @@ def gen_simrb_pattern(
         num_qubits = backend.configuration().num_qubits
         pattern_set = [[[i] for i in range(num_qubits)]]
     else:
-        """FIXME
-        ２量子ビット以降はグラフ彩色問題として解く
-        """
-        raise NotImplementedError("qubit_size = 1 以外はまだ実装されてない。")
+        raise NotImplementedError("simRB pattern for more than 2 qubits is not implemented yet.")
 
     return pattern_set
+
+
+def path_to_rbexperiments(
+    job_dir: str,
+    backend_name: str,
+    date,
+    num_qubits: int,
+):
+    expfile_path = (
+        job_dir
+        + "/rb_experiments/"
+        + str(date)
+        + "_"
+        + backend_name
+        + "_"
+        + str(num_qubits)
+        + "qubit-gate_variance.pickle"
+    )
+    return expfile_path
 
 
 def path_to_jobfile(
@@ -241,7 +368,7 @@ def path_to_jobfile(
 ):
     jobfile_path = (
         job_dir
-        + "/"
+        + "/jobfile/"
         + str(date)
         + "_"
         + backend_name
@@ -258,9 +385,9 @@ def path_to_resultfile(
     date,
     num_qubits: int,
 ):
-    jobfile_path = (
+    csv_path = (
         result_dir
-        + "/"
+        + "/results/"
         + str(date)
         + "_"
         + backend_name
@@ -268,4 +395,42 @@ def path_to_resultfile(
         + str(num_qubits)
         + "qubit-gate_variance.pickle"
     )
-    return jobfile_path
+    return csv_path
+
+
+def path_to_csvfile(
+    result_dir: str,
+    backend_name: str,
+    date,
+    num_qubits: int,
+):
+    csv_path = (
+        result_dir
+        + "/csv/"
+        + str(date)
+        + "_"
+        + backend_name
+        + "_"
+        + str(num_qubits)
+        + "qubit-gate_variance.csv"
+    )
+    return csv_path
+
+
+def path_to_figure(
+    result_dir: str,
+    backend_name: str,
+    date,
+    num_qubits: int,
+):
+    figfile_path = (
+        result_dir
+        + "/plot/"
+        + str(date)
+        + "_"
+        + backend_name
+        + "_"
+        + str(num_qubits)
+        + "qubit-gate_variance.png"
+    )
+    return figfile_path
