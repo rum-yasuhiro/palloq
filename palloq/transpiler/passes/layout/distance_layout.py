@@ -1,13 +1,16 @@
+# This program is based on https://github.com/Qiskit/qiskit-terra/blob/main/qiskit/transpiler/passes/layout/noise_adaptive_layout.py
+# Edited by Yasuhiro Ohkura
+# github: https://github.com/rum-yasuhiro/palloq
+#
+
 import math
 import networkx as nx
 from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
 from qiskit.transpiler.exceptions import TranspilerError
-from qiskit import QuantumRegister, ClassicalRegister
-from qiskit.dagcircuit import DAGCircuit
 
 
-class CrosstalkAdaptiveMultiLayout(AnalysisPass):
+class DistanceMultiLayout(AnalysisPass):
     def __init__(self, backend_prop, crosstalk_prop=None, output_name=None):
 
         super().__init__()
@@ -17,7 +20,6 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
         self.prog_graphs = []
         self.output_name = output_name
         self.consumed_hw_edges = []
-
         self.swap_graph = nx.DiGraph()
         self.cx_reliability = {}
         self.readout_reliability = {}
@@ -33,7 +35,6 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
     def _initialize_backend_prop(self):
         """Extract readout and CNOT errors and compute swap costs."""
         backend_prop = self.backend_prop
-        idx_list = []
         for ginfo in backend_prop.gates:
             if ginfo.gate == "cx":
                 for item in ginfo.parameters:
@@ -99,51 +100,6 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                         if reliab > best_reliab:
                             best_reliab = reliab
                     self.swap_reliabs[i][j] = best_reliab
-
-    def _crosstalk_backend_prop(self, edge):
-        q0 = min(edge[0], edge[1])
-        q1 = max(edge[0], edge[1])
-        edge = (q0, q1)
-        if self.crosstalk_prop and edge in self.crosstalk_prop:
-            print(self.crosstalk_prop[edge])
-            for xtalk_edge, crosstalk_ratio in self.crosstalk_prop[edge].items():
-                print(xtalk_edge)
-                cx_err = 1 - self.cx_reliability[xtalk_edge]
-                #################
-                # print(cx_err)
-                ################
-                """論文に要説明
-                Rule:   
-                    双方向にクロストークの影響がある場合、より大きな方を考慮に入れて
-                    エラー情報のアップデートを行う
-                """
-                try:
-                    crosstalk_ratio = max(
-                        self.crosstalk_prop[xtalk_edge][edge],
-                        crosstalk_ratio,
-                    )
-                except:
-                    pass
-                _tmp_cx_err = cx_err
-                if crosstalk_ratio >= 1:
-                    cx_err *= crosstalk_ratio
-                cx_err = cx_err if cx_err <= 0.9999 else 0.9999
-                #################
-                print(
-                    "Updated",
-                    edge,
-                    ":",
-                    xtalk_edge,
-                    " from ",
-                    _tmp_cx_err,
-                    " to ",
-                    cx_err,
-                )
-                ################
-                self.cx_reliability[xtalk_edge] = 1 - cx_err
-
-            self.crosstalk_edges.append(edge)
-            self._update_edge_prop()
 
     def _parse_crosstalk_prop(self, crosstalk_prop):
         if crosstalk_prop is not None:
@@ -256,23 +212,8 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                 best_hw_qubit = hw_qubit
         return best_hw_qubit
 
-    def _correct_xtalk_prop_keys(self):
-        corrected_prop = {}
-        for twoQcon, xtalk_dict in self.crosstalk_prop.items():
-            corrected_dict = {}
-            corrected_twoQcon = (
-                min(twoQcon[0], twoQcon[1]),
-                max(twoQcon[0], twoQcon[1]),
-            )
-            for pair, xtalk_ratio in xtalk_dict.items():
-                corrected_pair = (min(pair[0], pair[1]), max(pair[0], pair[1]))
-                corrected_dict[corrected_pair] = xtalk_ratio
-            corrected_prop[corrected_twoQcon] = corrected_dict
-        self.crosstalk_prop = corrected_prop
-
     def run(self, dag):
         """Run the CrosstalkAdaptiveLayout pass on `list of dag`."""
-        self._correct_xtalk_prop_keys()
         self._initialize_backend_prop()
         num_qubits = self._create_program_graphs(dag=dag)
 
@@ -285,9 +226,6 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
         for prog_graph in self.prog_graphs:
             # sort by weight, then edge name for determinism (since networkx on python 3.5 returns
             # different order of edges)
-            """NEXT STEP!
-            ここに、Multi-programmingするかどうかの判定関数を噛ませる
-            """
             self.pending_program_edges = sorted(
                 prog_graph.edges(data=True),
                 key=lambda x: [x[2]["weight"], -x[0], -x[1]],
@@ -311,7 +249,6 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                     self.available_hw_qubits.remove(best_hw_edge[0])
                     self.available_hw_qubits.remove(best_hw_edge[1])
 
-                    self._crosstalk_backend_prop(edge=best_hw_edge)
                 elif not q1_mapped:
                     best_hw_qubit = self._select_best_remaining_qubit(
                         edge[0], prog_graph
@@ -325,9 +262,6 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                         )
                     self.prog2hw[edge[0]] = best_hw_qubit
                     self.available_hw_qubits.remove(best_hw_qubit)
-                    self._crosstalk_backend_prop(
-                        edge=(self.prog2hw[edge[1]], best_hw_qubit)
-                    )
                 else:
                     best_hw_qubit = self._select_best_remaining_qubit(
                         edge[1], prog_graph
@@ -341,9 +275,6 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                         )
                     self.prog2hw[edge[1]] = best_hw_qubit
                     self.available_hw_qubits.remove(best_hw_qubit)
-                    self._crosstalk_backend_prop(
-                        edge=(self.prog2hw[edge[0]], best_hw_qubit)
-                    )
                 new_edges = [
                     x
                     for x in self.pending_program_edges

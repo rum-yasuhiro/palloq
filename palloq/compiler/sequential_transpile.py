@@ -96,7 +96,11 @@ def sequential_transpile(
     backend_properties = _backend_properties(backend_properties, backend)
     coupling_map = _coupling_map(coupling_map, backend)
 
-    # define pass manager
+    # define pass manager.
+    """FIXME
+    I still expected only dist_layout pass. 
+    But eventually I hope marge this to multi_transpile function. 
+    """
     pass_manager_config = PassManagerConfig(
         basis_gates=basis_gates,
         coupling_map=coupling_map,
@@ -119,7 +123,7 @@ def sequential_transpile(
     elif layout_method == "distance_multiplelayout":
         pass_manager = multi_pass_manager(pass_manager_config)
         # layout_method=None
-        logger.info("############## xtalk-adaptive multi transpile ##############")
+        logger.info("############## dist_layout ##############")
         transpiled_multi_circuits = list(map(pass_manager.run, multi_circuits))
         if len(transpiled_multi_circuits) == 1:
             return transpiled_multi_circuits[0]
