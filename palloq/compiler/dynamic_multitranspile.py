@@ -150,7 +150,7 @@ def _sequential_layout(
     while hw_still_avaible:
         if not queued_circuits:
             break
-        qc = _select_next_qc(queued_circuits)
+        next_qc = _select_next_qc(queued_circuits)
 
     return composed_circuit, queued_circuits
 
