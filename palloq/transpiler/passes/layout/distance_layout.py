@@ -8,15 +8,18 @@ import networkx as nx
 from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
 from qiskit.transpiler.exceptions import TranspilerError
+from qiskit.providers.models import BackendProperties
 
 
 class DistanceMultiLayout(AnalysisPass):
-    def __init__(self, backend_prop, crosstalk_prop=None, output_name=None):
+    def __init__(
+        self,
+        backend_prop: BackendProperties,
+        output_name: str = None,
+    ):
 
         super().__init__()
         self.backend_prop = backend_prop
-        self.crosstalk_prop = self._parse_crosstalk_prop(crosstalk_prop)
-        self.crosstalk_edges = []
         self.prog_graphs = []
         self.output_name = output_name
         self.consumed_hw_edges = []
@@ -100,23 +103,6 @@ class DistanceMultiLayout(AnalysisPass):
                         if reliab > best_reliab:
                             best_reliab = reliab
                     self.swap_reliabs[i][j] = best_reliab
-
-    def _parse_crosstalk_prop(self, crosstalk_prop):
-        if crosstalk_prop is not None:
-            sorted_prop = {}
-            for _edge in crosstalk_prop:
-                q0 = min(_edge[0], _edge[1])
-                q1 = max(_edge[0], _edge[1])
-                edge = (q0, q1)
-                sorted_prop[edge] = {}
-                for _xtalk_edge in crosstalk_prop[_edge]:
-                    q0 = min(_xtalk_edge[0], _xtalk_edge[1])
-                    q1 = max(_xtalk_edge[0], _xtalk_edge[1])
-                    xtalk_edge = (q0, q1)
-                    xtalk_ratio = crosstalk_prop[_edge][_xtalk_edge]
-                    sorted_prop[edge][xtalk_edge] = xtalk_ratio
-            return sorted_prop
-        return None
 
     def _create_program_graphs(self, dag):
         """Program graph has virtual qubits as nodes.
@@ -213,7 +199,7 @@ class DistanceMultiLayout(AnalysisPass):
         return best_hw_qubit
 
     def run(self, dag):
-        """Run the CrosstalkAdaptiveLayout pass on `list of dag`."""
+        """Run the DistanceMultiLayout pass on `list of dag`."""
         self._initialize_backend_prop()
         num_qubits = self._create_program_graphs(dag=dag)
 
