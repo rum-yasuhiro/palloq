@@ -15,6 +15,7 @@ class DistanceMultiLayout(AnalysisPass):
     def __init__(
         self,
         backend_prop: BackendProperties,
+        coupling_map,
         output_name: str = None,
     ):
 

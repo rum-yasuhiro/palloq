@@ -44,83 +44,46 @@ from qiskit.transpiler.preset_passmanagers import (
     level_3_pass_manager,
 )
 
-from qiskit.compiler import transpile
-from palloq.transpiler.preset_passmanagers import multi_pass_manager
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def dynamic_multitranspile(
-    circuits: List[QuantumCircuit],
+def dynamic_multiqc_compose(
+    queued_qc: List[QuantumCircuit],
     backend: Optional[Union[Backend, BaseBackend]] = None,
     basis_gates: Optional[List[str]] = None,
     coupling_map: Optional[Union[CouplingMap, List[List[int]]]] = None,
     backend_properties: Optional[BackendProperties] = None,
     layout_method: Optional[str] = "distance_multiplelayout",
-    routing_method: Optional[str] = None,
-    translation_method: Optional[str] = None,
-    scheduling_method: Optional[str] = None,
-    instruction_durations: Optional[InstructionDurationsType] = None,
-    seed_transpiler: Optional[int] = None,
-    pass_manager: Optional[PassManager] = None,
     num_idle_qubits=0,
     output_name: Optional[Union[str, List[str]]] = None,
-):
+) -> List[Tuple[QuantumCircuit, dict]]:
     """Mapping several circuits to single circuit based on calibration for the backend
 
     Args:
         circuits: List of quantum circuits you want to execute concurrently.
-                  Transpiler selects the combination of circuits and compose those as
+                  our layout pass selects the combination of circuits and compose those as
                   single circuit.
         backend:
         backend_properties:
         output_name: the name of output circuit. str or List[str]
 
     Returns:
-        composed multitasking circuit(s)..
+        list of tuple of composed QuantumCircuit and its layout
     """
+
+    # translate all of QCs to basis gates, sort list of QuantumCircuit by number of cx gates
+    # loop list of QCs find combination of concurrent execution and its layout until all QCs are allocated
+
     # check the type of input argument
-    if not isinstancelist(circuits):
+    if not isinstancelist(queued_qc):
         raise TypeError(
             "Expected input type of 'circuits' argument was list of QuantumCircuit object."
         )
     # get backend information
     backend_properties = _backend_properties(backend_properties, backend)
     coupling_map = _coupling_map(coupling_map, backend)
-
-    # define pass manager.
-    """FIXME
-    I still expected only dist_layout pass. 
-    But eventually I hope marge this to multi_transpile function. 
-    """
-    pass_manager_config = PassManagerConfig(
-        basis_gates=basis_gates,
-        coupling_map=coupling_map,
-        backend_properties=backend_properties,
-        initial_layout=Layout(),
-        layout_method=layout_method,
-        routing_method=routing_method,
-        translation_method=translation_method,
-        scheduling_method=scheduling_method,
-        instruction_durations=instruction_durations,
-        seed_transpiler=seed_transpiler,
-    )
-    """FIXME
-    resolve output_name
-    """
-    if pass_manager:
-        raise NotImplementedError(
-            "I put the 'pass_manager' argument but still expected as 'None' that. Sorry... "
-        )
-    elif layout_method == "distance_multiplelayout":
-        logger.info("############## dist_layout ##############")
-        pass_manager = multi_pass_manager(pass_manager_config)
-    else:
-        raise NotImplementedError(
-            "layout method for this transpiler is only expected 'distance_multiplelayout'. Others have not implemented yet. "
-        )
 
     # repeat untill all queued qcs are assgined
     composed_circuits = []
@@ -132,7 +95,7 @@ def dynamic_multitranspile(
         composed_circuits.append(comp_qc)
 
     # apply qiskit pass managers except for layout pass
-    """FIXME
+    """TODO
     transpiled_multi_circuits = list(map(pass_manager.run, multi_circuits))
     if len(transpiled_multi_circuits) == 1:
         return transpiled_multi_circuits[0]
@@ -173,71 +136,6 @@ def _append_qc(
 def _append_dag() -> DAGCircuit:
 
     return combined_dag
-
-
-# def _compose_multicircuits(circuits: List[QuantumCircuit]) -> QuantumCircuit:
-
-#     composed_multicircuit = QuantumCircuit()
-#     name_list = []
-#     bit_counter = 0
-#     dag_list = [circuit_to_dag(circuit.copy()) for circuit in circuits]
-#     return dag_to_circuit(_compose_dag(dag_list))
-
-
-# def _compose_dag(dag_list):
-#     """Compose each dag and return new multitask dag"""
-
-#     """FIXME 下記と同様
-#     """
-#     name_list = []
-#     #################
-#     qubit_counter = 0
-#     clbit_counter = 0
-#     composed_multidag = DAGCircuit()
-#     for i, dag in enumerate(dag_list):
-#         num_qubits = dag.num_qubits()
-#         num_clbits = dag.num_clbits()
-#         """FIXME
-#         Problem:
-#             register_name: register nameを定義すると、outputの `new_dag` に対して `dag_to_circuit()`
-#             を実行した時、
-#             qiskit.circuit.exceptions.CircuitError: 'register name "定義した名前" already exists'
-#             が発生するため、任意のレジスター名をつけることができない
-
-#         Code:
-#             reg_name_tmp = dag.qubits[0].register.name
-#             register_name = reg_name_tmp if (reg_name_tmp not in name_list) and (
-#                 not reg_name_tmp == 'q') else None
-#             name_list.append(register_name)
-#         """
-#         ############################################################
-#         reg_name_tmp = dag.qubits[0].register.name
-#         register_name = (
-#             reg_name_tmp
-#             if (reg_name_tmp not in name_list) and (not reg_name_tmp == "q")
-#             else None
-#         )
-#         name_list.append(register_name)
-#         ############################################################
-
-#         qr = QuantumRegister(size=num_qubits, name=register_name)
-#         composed_multidag.add_qreg(qr)
-#         qubits = composed_multidag.qubits[qubit_counter : qubit_counter + num_qubits]
-
-#         if num_clbits > 0:
-#             cr = ClassicalRegister(size=num_clbits, name=None)
-#             composed_multidag.add_creg(cr)
-#             clbits = composed_multidag.clbits[
-#                 clbit_counter : clbit_counter + num_clbits
-#             ]
-
-#             composed_multidag.compose(dag, qubits=qubits, clbits=clbits)
-#         else:
-#             composed_multidag.compose(dag, qubits=qubits)
-
-#         qubit_counter += num_qubits
-#         clbit_counter += num_clbits
-#     return composed_multidag
 
 
 def _backend_properties(backend_properties, backend):
@@ -306,7 +204,3 @@ def _coupling_map(coupling_map, backend):
                     coupling_map = CouplingMap(configuration.coupling_map)
     # coupling_map = [CouplingMap(cm) if isinstance(cm, list) else cm for cm in coupling_map]
     return coupling_map
-
-
-if __name__ == "__main__":
-    pass
