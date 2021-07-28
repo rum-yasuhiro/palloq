@@ -5,6 +5,7 @@
 
 import math
 import networkx as nx
+from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
 from qiskit.transpiler.exceptions import TranspilerError
@@ -21,6 +22,15 @@ class DistanceMultiLayout(AnalysisPass):
 
         super().__init__()
         self.backend_prop = backend_prop
+
+        """TODO
+        coupling_mapを用いた faulty hw qubit checker を追加する
+        """
+        self.coupling_map = coupling_map
+
+        self.hw_still_avaible = True
+        self.floaded_dag = None
+
         self.prog_graphs = []
         self.output_name = output_name
         self.consumed_hw_edges = []
@@ -199,13 +209,31 @@ class DistanceMultiLayout(AnalysisPass):
                 best_hw_qubit = hw_qubit
         return best_hw_qubit
 
-    def run(self, dag):
+    def _combine_dag(self, init_dag, next_dag):
+        """TODO
+        二つのdagを結合する
+        """
+        raise NotImplementedError()
+
+        combined = init_dag
+        return combined
+
+    def run(self, init_dag, next_dag):
         """Run the DistanceMultiLayout pass on `list of dag`."""
+
+        # Compare next dag.qubits to left num qubits status and check the status by using self.hw_still_avaible.
+        # If so, hw_still_avaible=False and return init_dag
+        #
+        # Combine init_dag and next_dag
+        # Return init_dag
+
         self._initialize_backend_prop()
-        num_qubits = self._create_program_graphs(dag=dag)
+        num_qubits = self._create_program_graphs(dag=next_dag)
 
         if num_qubits > len(self.available_hw_qubits):
-            raise TranspilerError("Number of qubits greater than device.")
+            self.hw_still_avaible = False
+            self.floaded_dag = next_dag
+            return init_dag
 
         for hwid, q in enumerate(dag.qubits):
             self.qarg_to_id[q.register.name + str(q.index)] = hwid
@@ -283,3 +311,6 @@ class DistanceMultiLayout(AnalysisPass):
             layout_dict[q] = hwid
             print("prog: {} , hw: {}".format(q, hwid))
         self.property_set["layout"] = Layout(input_dict=layout_dict)
+
+        combined_dag = self._combine_dag(init_dag, next_dag)
+        return combined_dag

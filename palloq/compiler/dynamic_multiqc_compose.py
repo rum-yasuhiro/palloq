@@ -25,25 +25,8 @@ from qiskit.dagcircuit import DAGCircuit
 from qiskit.providers import BaseBackend
 from qiskit.providers.backend import Backend
 from qiskit.providers.models import BackendProperties
-from qiskit.providers.models.backendproperties import Gate
-from qiskit.pulse import Schedule
-from qiskit.tools.parallel import parallel_map
-from qiskit.transpiler import Layout, CouplingMap, PropertySet, PassManager
-from qiskit.transpiler.basepasses import BasePass
-from qiskit.transpiler.exceptions import TranspilerError
-from qiskit.transpiler.instruction_durations import (
-    InstructionDurations,
-    InstructionDurationsType,
-)
-from qiskit.transpiler.passes import ApplyLayout
-from qiskit.transpiler.passmanager_config import PassManagerConfig
-from qiskit.transpiler.preset_passmanagers import (
-    level_0_pass_manager,
-    level_1_pass_manager,
-    level_2_pass_manager,
-    level_3_pass_manager,
-)
 
+from palloq.transpiler.passes.layout.distance_layout import DistanceMultiLayout
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -87,10 +70,12 @@ def dynamic_multiqc_compose(
 
     # repeat untill all queued qcs are assgined
     composed_circuits = []
-    while len(circuits) > 0:
-        comp_qc, circuits = _sequential_layout(
-            circuits,
+    while len(queued_qc) > 0:
+        comp_qc, queued_qc = _sequential_layout(
+            queued_qc,
             len(backend_properties.qubits),
+            backend_properties,
+            coupling_map,
         )
         composed_circuits.append(comp_qc)
 
@@ -106,14 +91,28 @@ def dynamic_multiqc_compose(
 def _sequential_layout(
     queued_circuits,
     num_hw_qubits,
+    backend_properties,
+    coupling_map,
 ) -> Tuple[QuantumCircuit, List[QuantumCircuit]]:
 
-    hw_still_avaible = True
-    qc = QuantumCircuit()
-    while hw_still_avaible:
+    init_qc = QuantumCircuit()
+
+    dist_layout = DistanceMultiLayout(
+        backend_properties,
+    )
+    while dist_layout.hw_still_avaible:
         if not queued_circuits:
             break
         next_qc = _select_next_qc(queued_circuits)
+        next_dag = circuit_to_dag(next_qc)
+        init_dag, floaded_qc = dist_layout.run(init_dag, next_dag)
+
+    if dist_layout.floaded_dag:
+        floaded_qc = dag_to_circuit(dist_layout.floaded_dag)
+        queued_circuits.append(floaded_qc)
+
+    composed_circuit = dag_to_circuit(init_dag)
+    layout = dist_layout.property_set["layout"]
 
     return composed_circuit, queued_circuits
 
@@ -123,19 +122,6 @@ def _select_next_qc(queue: List[QuantumCircuit]) -> QuantumCircuit:
     # 何かしらの最適化処理を追記する
     next_qc = queue.pop(0)
     return next_qc
-
-
-def _append_qc(
-    qc,
-    base_qc: QuantumCircuit = None,
-) -> QuantumCircuit:
-
-    return
-
-
-def _append_dag() -> DAGCircuit:
-
-    return combined_dag
 
 
 def _backend_properties(backend_properties, backend):
@@ -149,6 +135,11 @@ def _backend_properties(backend_properties, backend):
 def _create_faulty_qubits_map(backend):
     """If the backend has faulty qubits, those should be excluded. A faulty_qubit_map is a map
     from working qubit in the backend to dumnmy qubits that are consecutive and connected."""
+
+    """TODO
+    apply faulty qubits map checker on this layout sequence
+    """
+
     faulty_qubits_map = None
     if backend is not None:
         if backend.properties():
