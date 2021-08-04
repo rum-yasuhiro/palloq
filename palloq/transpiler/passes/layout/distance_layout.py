@@ -4,8 +4,9 @@
 #
 
 import math
+
 import networkx as nx
-from qiskit.converters.dag_to_circuit import dag_to_circuit
+
 from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
 from qiskit.transpiler.exceptions import TranspilerError
@@ -31,7 +32,6 @@ class DistanceMultiLayout(AnalysisPass):
         self.hw_still_avaible = True
         self.floaded_dag = None
 
-        self.prog_graphs = []
         self.output_name = output_name
         self.consumed_hw_edges = []
         self.swap_graph = nx.DiGraph()
@@ -126,36 +126,19 @@ class DistanceMultiLayout(AnalysisPass):
         for q in dag.qubits:
             self.qarg_to_id[q.register.name + str(q.index)] = idx
             idx += 1
-        prog_graph = nx.Graph()
+        
+        # every time next_graph is assgined, prog_graph is initialized
+        self.prog_graph = nx.Graph()
         for gate in dag.two_qubit_ops():
             qid1 = self._qarg_to_id(gate.qargs[0])
             qid2 = self._qarg_to_id(gate.qargs[1])
             min_q = min(qid1, qid2)
             max_q = max(qid1, qid2)
             edge_weight = 1
-            if prog_graph.has_edge(min_q, max_q):
-                edge_weight = prog_graph[min_q][max_q]["weight"] + 1
-            prog_graph.add_edge(min_q, max_q, weight=edge_weight)
-
-        prog_subgraphs = list(
-            prog_graph.subgraph(c) for c in nx.connected_components(prog_graph)
-        )
-        self.prog_graphs = self._sort_graphs(prog_subgraphs)
+            if self.prog_graph.has_edge(min_q, max_q):
+                edge_weight = self.prog_graph[min_q][max_q]["weight"] + 1
+            self.prog_graph.add_edge(min_q, max_q, weight=edge_weight)
         return idx
-
-    def _sort_graphs(self, graph_list):
-        """
-        w: total weight of edges in graph
-
-        """
-        graph_volumes = {}
-        order = []
-        for i, graph in enumerate(graph_list):
-            graph_volumes[i] = graph.size(weight="weight") * graph.number_of_nodes()
-        return [
-            graph_list[id_kq[0]]
-            for id_kq in sorted(graph_volumes.items(), key=lambda x: x[1], reverse=True)
-        ]
 
     def _qarg_to_id(self, qubit):
         """Convert qarg with name and value to an integer id."""
@@ -218,85 +201,112 @@ class DistanceMultiLayout(AnalysisPass):
         combined = init_dag
         return combined
 
-    def run(self, init_dag, next_dag):
+    def run(self, next_dag, init_dag=None):
         """Run the DistanceMultiLayout pass on `list of dag`."""
 
         # Compare next dag.qubits to left num qubits status and check the status by using self.hw_still_avaible.
         # If so, hw_still_avaible=False and return init_dag
-        #
+        # find next_dag's hw_qubits
         # Combine init_dag and next_dag
         # Return init_dag
 
         self._initialize_backend_prop()
         num_qubits = self._create_program_graphs(dag=next_dag)
 
+        # check the hardware availability
         if num_qubits > len(self.available_hw_qubits):
             self.hw_still_avaible = False
             self.floaded_dag = next_dag
             return init_dag
 
-        for hwid, q in enumerate(dag.qubits):
-            self.qarg_to_id[q.register.name + str(q.index)] = hwid
+        # sort program sub-graphs by weight
 
-        for prog_graph in self.prog_graphs:
-            # sort by weight, then edge name for determinism (since networkx on python 3.5 returns
-            # different order of edges)
-            self.pending_program_edges = sorted(
-                prog_graph.edges(data=True),
-                key=lambda x: [x[2]["weight"], -x[0], -x[1]],
-                reverse=True,
-            )
+        self.pending_program_edges = sorted(
+            self.prog_graph.edges(data=True),
+            key=lambda x: [x[2]["weight"], -x[0], -x[1]],
+            reverse=True,
+        )
 
-            while self.pending_program_edges:
+        while self.pending_program_edges:
 
-                edge = self._select_next_edge()
-                q1_mapped = edge[0] in self.prog2hw
-                q2_mapped = edge[1] in self.prog2hw
-                if (not q1_mapped) and (not q2_mapped):
-                    best_hw_edge = self._select_best_remaining_cx()
-                    if best_hw_edge is None:
-                        raise TranspilerError(
-                            "CNOT({}, {}) could not be placed "
-                            "in selected device.".format(edge[0], edge[1])
-                        )
-                    self.prog2hw[edge[0]] = best_hw_edge[0]
-                    self.prog2hw[edge[1]] = best_hw_edge[1]
-                    self.available_hw_qubits.remove(best_hw_edge[0])
-                    self.available_hw_qubits.remove(best_hw_edge[1])
+            edge = self._select_next_edge()
+            q1_mapped = edge[0] in self.prog2hw
+            q2_mapped = edge[1] in self.prog2hw
 
-                elif not q1_mapped:
-                    best_hw_qubit = self._select_best_remaining_qubit(
-                        edge[0], prog_graph
+            if (not q1_mapped) and (not q2_mapped):
+                best_hw_edge = self._select_best_remaining_cx()
+
+                # deal exception
+                if best_hw_edge is None:
+                    # hw has no capacity to add next_dag
+                    if init_dag is not None:
+                        self.hw_still_avaible = False
+                        self.floaded_dag = next_dag
+                        return init_dag
+                    raise TranspilerError(
+                        "CNOT({}, {}) could not be placed "
+                        "in selected device.".format(edge[0], edge[1])
                     )
-                    if best_hw_qubit is None:
-                        raise TranspilerError(
-                            "CNOT({}, {}) could not be placed in selected device. "
-                            "No qubit near qr[{}] available".format(
-                                edge[0], edge[1], edge[0]
-                            )
-                        )
-                    self.prog2hw[edge[0]] = best_hw_qubit
-                    self.available_hw_qubits.remove(best_hw_qubit)
-                else:
-                    best_hw_qubit = self._select_best_remaining_qubit(
-                        edge[1], prog_graph
-                    )
-                    if best_hw_qubit is None:
-                        raise TranspilerError(
-                            "CNOT({}, {}) could not be placed in selected device. "
-                            "No qubit near qr[{}] available".format(
-                                edge[0], edge[1], edge[1]
-                            )
-                        )
-                    self.prog2hw[edge[1]] = best_hw_qubit
-                    self.available_hw_qubits.remove(best_hw_qubit)
-                new_edges = [
-                    x
-                    for x in self.pending_program_edges
-                    if not (x[0] in self.prog2hw and x[1] in self.prog2hw)
-                ]
+                # allocate and update hw qubits info
+                self.prog2hw[edge[0]] = best_hw_edge[0]
+                self.prog2hw[edge[1]] = best_hw_edge[1]
+                self.available_hw_qubits.remove(best_hw_edge[0])
+                self.available_hw_qubits.remove(best_hw_edge[1])
 
-                self.pending_program_edges = new_edges
+            elif not q1_mapped:
+                best_hw_qubit = self._select_best_remaining_qubit(
+                    edge[0], self.prog_graph
+                )
+
+                # deal exception
+                if best_hw_qubit is None:
+                    # hw has no capacity to add next_dag
+                    if init_dag is not None:
+                        self.hw_still_avaible = False
+                        self.floaded_dag = next_dag
+                        return init_dag
+                    raise TranspilerError(
+                        "CNOT({}, {}) could not be placed in selected device. "
+                        "No qubit near qr[{}] available".format(
+                            edge[0], edge[1], edge[0]
+                        )
+                    )
+
+                # allocate and update hw qubits info
+                self.prog2hw[edge[0]] = best_hw_qubit
+                self.available_hw_qubits.remove(best_hw_qubit)
+
+            else:
+                best_hw_qubit = self._select_best_remaining_qubit(
+                    edge[1], self.prog_graph
+                )
+
+                # deal exception
+                if best_hw_qubit is None:
+                    # hw has no capacity to add next_dag
+                    if init_dag is not None:
+                        self.hw_still_avaible = False
+                        self.floaded_dag = next_dag
+                        return init_dag
+                    raise TranspilerError(
+                        "CNOT({}, {}) could not be placed in selected device. "
+                        "No qubit near qr[{}] available".format(
+                            edge[0], edge[1], edge[1]
+                        )
+                    )
+
+                # allocate and update hw qubits info
+                self.prog2hw[edge[1]] = best_hw_qubit
+                self.available_hw_qubits.remove(best_hw_qubit)
+
+            # update program graph edges
+            new_edges = [
+                x
+                for x in self.pending_program_edges
+                if not (x[0] in self.prog2hw and x[1] in self.prog2hw)
+            ]
+
+            self.pending_program_edges = new_edges
 
         for qid in self.qarg_to_id.values():
             if qid not in self.prog2hw:
@@ -304,7 +314,7 @@ class DistanceMultiLayout(AnalysisPass):
                 self.available_hw_qubits.remove(self.prog2hw[qid])
 
         layout_dict = {}
-        for q in dag.qubits:
+        for q in next_dag.qubits:
             pid = self._qarg_to_id(q)
             hwid = self.prog2hw[pid]
             # layout[q] = hwid

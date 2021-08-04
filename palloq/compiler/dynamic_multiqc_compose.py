@@ -95,17 +95,17 @@ def _sequential_layout(
     coupling_map,
 ) -> Tuple[QuantumCircuit, List[QuantumCircuit]]:
 
-    init_qc = QuantumCircuit()
-
+    init_dag = None
     dist_layout = DistanceMultiLayout(
         backend_properties,
     )
+
     while dist_layout.hw_still_avaible:
         if not queued_circuits:
             break
         next_qc = _select_next_qc(queued_circuits)
         next_dag = circuit_to_dag(next_qc)
-        init_dag, floaded_qc = dist_layout.run(init_dag, next_dag)
+        init_dag = dist_layout.run(next_dag, init_dag)
 
     if dist_layout.floaded_dag:
         floaded_qc = dag_to_circuit(dist_layout.floaded_dag)
