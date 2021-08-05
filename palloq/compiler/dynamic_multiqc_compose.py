@@ -1,5 +1,5 @@
-# 2020/12/3
-# qiskit version: 0.23.1
+# 2021/8/
+# qiskit version: 0.27.0
 #
 
 """Multi Circuits transpile function"""
@@ -15,6 +15,7 @@ from qiskit.circuit.quantumcircuit import (
     ClassicalRegister,
 )
 from qiskit.circuit.quantumregister import Qubit
+from qiskit.transpiler import CouplingMap
 from qiskit.converters import (
     isinstanceint,
     isinstancelist,

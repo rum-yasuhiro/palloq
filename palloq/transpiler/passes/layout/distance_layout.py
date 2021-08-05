@@ -126,7 +126,7 @@ class DistanceMultiLayout(AnalysisPass):
         for q in dag.qubits:
             self.qarg_to_id[q.register.name + str(q.index)] = idx
             idx += 1
-        
+
         # every time next_graph is assgined, prog_graph is initialized
         self.prog_graph = nx.Graph()
         for gate in dag.two_qubit_ops():
@@ -322,5 +322,6 @@ class DistanceMultiLayout(AnalysisPass):
             print("prog: {} , hw: {}".format(q, hwid))
         self.property_set["layout"] = Layout(input_dict=layout_dict)
 
-        combined_dag = self._combine_dag(init_dag, next_dag)
-        return combined_dag
+        if init_dag:
+            next_dag = self._combine_dag(init_dag, next_dag)
+        return next_dag
