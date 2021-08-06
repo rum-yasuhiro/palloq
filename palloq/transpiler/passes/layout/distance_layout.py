@@ -4,13 +4,20 @@
 #
 
 import math
+from os import name
 
 import networkx as nx
+from qiskit.circuit.classicalregister import ClassicalRegister
+from qiskit.circuit.quantumcircuit import QuantumCircuit
+from qiskit.circuit.quantumregister import QuantumRegister
+from qiskit.dagcircuit.dagcircuit import DAGCircuit
 
 from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
 from qiskit.transpiler.exceptions import TranspilerError
 from qiskit.providers.models import BackendProperties
+
+from qiskit.converters import dag_to_circuit
 
 
 class DistanceMultiLayout(AnalysisPass):
@@ -46,6 +53,8 @@ class DistanceMultiLayout(AnalysisPass):
         self.pending_program_edges = []
         self.prog2hw = {}
 
+        self._initialize_backend_prop()
+
     def _initialize_backend_prop(self):
         """Extract readout and CNOT errors and compute swap costs."""
         backend_prop = self.backend_prop
@@ -76,9 +85,7 @@ class DistanceMultiLayout(AnalysisPass):
                     self.readout_reliability[idx] = 1.0 - nduv.value
                     self.available_hw_qubits.append(idx)
             idx += 1
-        self._update_edge_prop()
 
-    def _update_edge_prop(self):
         for edge in self.cx_reliability:
             self.gate_reliability[edge] = (
                 self.cx_reliability[edge]
@@ -192,16 +199,54 @@ class DistanceMultiLayout(AnalysisPass):
                 best_hw_qubit = hw_qubit
         return best_hw_qubit
 
-    def _combine_dag(self, init_dag, next_dag):
+    def _combine_dag(self, init_dag: DAGCircuit, next_dag: DAGCircuit) -> DAGCircuit:
         """TODO
         二つのdagを結合する
         """
-        raise NotImplementedError()
+        # if dag with no qubit return initial dag
+        next_numq = next_dag.num_qubits()
+        if next_numq == 0:
+            return init_dag
 
-        combined = init_dag
-        return combined
+        # preserve num of qubits in init_dag before add new regs and use it later
+        init_numq = init_dag.num_qubits()
 
-    def run(self, next_dag, init_dag=None):
+        # add new empty qregs to init_dag based on next_dag's info
+        next_qregs = next_dag.qregs
+        for _name, _qreg in next_qregs.items():
+            _qr = QuantumRegister(
+                size=_qreg.size,
+                name=_name,
+            )
+            init_dag.add_qreg(_qr)
+
+        # preserve num of clbits in init_dag before add new cregs and use it later
+        init_numc = init_dag.num_clbits()
+
+        # add new empty cregs if it exits
+        next_numc = next_dag.num_clbits()
+        if next_numc > 0:
+            next_cregs = next_dag.cregs
+            for _name, _creg in next_cregs.items():
+                _cr = ClassicalRegister(
+                    size=_creg.size,
+                    name=_name,
+                )
+                init_dag.add_creg(_cr)
+
+        # combine dags
+        qubits = init_dag.qubits[init_numq : init_numq + next_numq]
+        if next_numc > 0:
+            clbits = init_dag.clbits[init_numc : init_numc + next_numc]
+            init_dag.compose(next_dag, qubits=qubits, clbits=clbits)
+        else:
+            init_dag.compose(next_dag, qubits=qubits)
+
+        combined_dag = init_dag
+        print(dag_to_circuit(combined_dag))
+        return combined_dag
+
+    def run(self, next_dag: DAGCircuit, init_dag=None):
         """Run the DistanceMultiLayout pass on `list of dag`."""
 
         # Compare next dag.qubits to left num qubits status and check the status by using self.hw_still_avaible.
@@ -210,7 +255,6 @@ class DistanceMultiLayout(AnalysisPass):
         # Combine init_dag and next_dag
         # Return init_dag
 
-        self._initialize_backend_prop()
         num_qubits = self._create_program_graphs(dag=next_dag)
 
         # check the hardware availability
