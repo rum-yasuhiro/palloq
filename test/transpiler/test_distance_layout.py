@@ -5,6 +5,7 @@
 import unittest
 
 from qiskit.circuit.quantumcircuit import QuantumCircuit
+from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.providers import backend
 
 from palloq.transpiler.passes.layout.distance_layout import DistanceMultiLayout
@@ -67,15 +68,17 @@ class TestDistanceLayout(unittest.TestCase):
         )
 
         init_dag = dml.run(next_dag=dag1)
+        print(dag_to_circuit(init_dag))
         mapped_dag = dml.run(next_dag=dag2, init_dag=init_dag)
+        print(dag_to_circuit(init_dag))
+        print(dag_to_circuit(mapped_dag))
 
         self.assertEqual(dag1, init_dag)
         self.assertNotEqual(dag1, mapped_dag)
         self.assertNotEqual(dag2, mapped_dag)
-
-        self.asertEqual(dag1.qubits, init_dag.qubits)
-        self.asertEqual(dag1.qubits[0], mapped_dag.qubits[0:3][0])
-        self.asertEqual(dag1.qubits[0], mapped_dag.qubits[3:6][0])
+        self.assertEqual(dag1.qubits, init_dag.qubits)
+        self.assertEqual(dag1.qubits[0], mapped_dag.qubits[0:3][0])
+        self.assertEqual(dag2.qubits[0], mapped_dag.qubits[3:6][0])
 
 
 if __name__ == "__main__":

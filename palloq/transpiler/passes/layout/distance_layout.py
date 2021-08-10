@@ -5,6 +5,7 @@
 
 import math
 from os import name
+from copy import copy
 
 import networkx as nx
 from qiskit.circuit.classicalregister import ClassicalRegister
@@ -16,8 +17,6 @@ from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
 from qiskit.transpiler.exceptions import TranspilerError
 from qiskit.providers.models import BackendProperties
-
-from qiskit.converters import dag_to_circuit
 
 
 class DistanceMultiLayout(AnalysisPass):
@@ -199,32 +198,48 @@ class DistanceMultiLayout(AnalysisPass):
                 best_hw_qubit = hw_qubit
         return best_hw_qubit
 
-    def _combine_dag(self, init_dag: DAGCircuit, next_dag: DAGCircuit) -> DAGCircuit:
+    def _combine_dag(
+        self,
+        init_dag: DAGCircuit,
+        next_dag: DAGCircuit,
+    ) -> DAGCircuit:
         """TODO
         二つのdagを結合する
         """
-        # if dag with no qubit return initial dag
+        # if dag with no bits return initial dag
         next_numq = next_dag.num_qubits()
-        if next_numq == 0:
+        next_numc = next_dag.num_clbits()
+        if next_numq == 0 and next_numc == 0:
             return init_dag
 
-        # preserve num of qubits in init_dag before add new regs and use it later
-        init_numq = init_dag.num_qubits()
+        # prepare new dag
+        combined_dag = DAGCircuit()
 
-        # add new empty qregs to init_dag based on next_dag's info
-        next_qregs = next_dag.qregs
-        for _name, _qreg in next_qregs.items():
+        # add empty qregs to combined_dag based on init_dag and next_dag's info
+        init_qregs = init_dag.qregs
+        for _name, _qreg in init_qregs.items():
             _qr = QuantumRegister(
                 size=_qreg.size,
                 name=_name,
             )
-            init_dag.add_qreg(_qr)
+            combined_dag.add_qreg(_qr)
+        if next_numq > 0:
+            next_qregs = next_dag.qregs
+            for _name, _qreg in next_qregs.items():
+                _qr = QuantumRegister(
+                    size=_qreg.size,
+                    name=_name,
+                )
+                combined_dag.add_qreg(_qr)
 
-        # preserve num of clbits in init_dag before add new cregs and use it later
-        init_numc = init_dag.num_clbits()
-
-        # add new empty cregs if it exits
-        next_numc = next_dag.num_clbits()
+        # add empty cregs to combined_dag based on init_dag and next_dag's info
+        init_cregs = init_dag.cregs
+        for _name, _creg in init_cregs.items():
+            _cr = ClassicalRegister(
+                size=_creg.size,
+                name=_name,
+            )
+            combined_dag.add_creg(_cr)
         if next_numc > 0:
             next_cregs = next_dag.cregs
             for _name, _creg in next_cregs.items():
@@ -232,18 +247,34 @@ class DistanceMultiLayout(AnalysisPass):
                     size=_creg.size,
                     name=_name,
                 )
-                init_dag.add_creg(_cr)
+                combined_dag.add_creg(_cr)
 
         # combine dags
-        qubits = init_dag.qubits[init_numq : init_numq + next_numq]
-        if next_numc > 0:
-            clbits = init_dag.clbits[init_numc : init_numc + next_numc]
-            init_dag.compose(next_dag, qubits=qubits, clbits=clbits)
-        else:
-            init_dag.compose(next_dag, qubits=qubits)
+        qubits = None
+        clbits = None
+        init_numq = init_dag.num_qubits()
+        init_numc = init_dag.num_clbits()
 
-        combined_dag = init_dag
-        print(dag_to_circuit(combined_dag))
+        if init_numq > 0:
+            qubits = combined_dag.qubits[0:init_numq]
+            print("num qubits: ", len(qubits))
+        if init_numc > 0:
+            clbits = combined_dag.clbits[0:init_numc]
+            print("num clbits: ", len(clbits))
+        combined_dag.compose(init_dag, qubits=qubits, clbits=clbits)
+
+        if next_numq > 0:
+            print("init_numq: ", init_numq)
+            print("next_numq: ", next_numq)
+            qubits = combined_dag.qubits[init_numq : init_numq + next_numq]
+            print("num qubits: ", len(qubits))
+        if next_numc > 0:
+            print("init_numc: ", init_numc)
+            print("next_numc: ", next_numc)
+            clbits = combined_dag.clbits[init_numc : init_numc + next_numc]
+            print("num clbits: ", len(clbits))
+        combined_dag.compose(next_dag, qubits=qubits, clbits=clbits)
+
         return combined_dag
 
     def run(self, next_dag: DAGCircuit, init_dag=None):
