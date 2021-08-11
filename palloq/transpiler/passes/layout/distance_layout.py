@@ -35,7 +35,7 @@ class DistanceMultiLayout(AnalysisPass):
 
         self.output_name = output_name
         self.consumed_hw_edges = []
-        self.swap_graph = nx.DiGraph()
+        self.swap_graph = nx.Graph()
         self.cx_reliability = {}
         self.readout_reliability = {}
         self.available_hw_qubits = []
@@ -144,6 +144,24 @@ class DistanceMultiLayout(AnalysisPass):
             self.prog_graph.add_edge(min_q, max_q, weight=edge_weight)
         return idx
 
+    def _adjacent_heavier_node(self, edge, graph):
+        q0 = min(edge[0], edge[1])
+        q1 = max(edge[0], edge[1])
+
+        weight_q0 = 0
+        for adj0 in nx.all_neighbors(graph, q0):
+            if adj0 != q1:
+                weight_q0 += graph[q0][adj0]["weight"]
+
+        weight_q1 = 0
+        for adj1 in nx.all_neighbors(graph, q1):
+            if adj1 != q0:
+                weight_q1 += graph[q1][adj1]["weight"]
+
+        if weight_q0 >= weight_q1:
+            return q0
+        return q1
+
     def _qarg_to_id(self, qubit):
         """Convert qarg with name and value to an integer id."""
         return self.qarg_to_id[qubit.register.name + str(qubit.index)]
@@ -164,6 +182,10 @@ class DistanceMultiLayout(AnalysisPass):
 
     def _select_best_remaining_cx(self):
         """Select best remaining CNOT in the hardware for the next program edge."""
+        """TODO
+        edgeの隣接をみてlook ahead して選ぶ
+        """
+
         candidates = []
         for gate in self.gate_list:
             chk1 = gate[0] in self.available_hw_qubits
@@ -264,6 +286,15 @@ class DistanceMultiLayout(AnalysisPass):
 
         return combined_dag
 
+    def _largest_connected_hw_qubits(self):
+        num_hw_qubits = 0
+
+        for hw_qubit_set in nx.connected_components(self.swap_graph):
+            if len(hw_qubit_set) >= num_hw_qubits:
+                num_hw_qubits = len(hw_qubit_set)
+
+        return num_hw_qubits
+
     def run(self, next_dag: DAGCircuit, init_dag=None):
         """Run the DistanceMultiLayout pass on `list of dag`."""
 
@@ -277,12 +308,10 @@ class DistanceMultiLayout(AnalysisPass):
         num_qubits = self._create_program_graphs(dag=next_dag)
 
         # check the hardware availability
-        if num_qubits > len(self.available_hw_qubits):
-            print("nq: ", num_qubits, "ahwq: ", self.available_hw_qubits)
+        if num_qubits > self._largest_connected_hw_qubits():
             if init_dag:
                 self.hw_still_avaible = False
                 self.floaded_dag = next_dag
-                print("case 0\n")
                 return init_dag
             raise LayoutError("some thing is wrong BackendPropertie")
 
@@ -306,17 +335,30 @@ class DistanceMultiLayout(AnalysisPass):
                     if init_dag is not None:
                         self.hw_still_avaible = False
                         self.floaded_dag = next_dag
-                        print("case 1\n")
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed "
                         "in selected device.".format(edge[0], edge[1])
                     )
                 # allocate and update hw qubits info
-                self.prog2hw[edge[0]] = best_hw_edge[0]
-                self.prog2hw[edge[1]] = best_hw_edge[1]
-                self.available_hw_qubits.remove(best_hw_edge[0])
-                self.available_hw_qubits.remove(best_hw_edge[1])
+                better_adj_hw_qubit = self._adjacent_heavier_node(
+                    best_hw_edge, self.swap_graph
+                )
+                less_reliab_adj_hw_qubit = (
+                    best_hw_edge[1]
+                    if best_hw_edge[0] == better_adj_hw_qubit
+                    else best_hw_edge[0]
+                )
+
+                heavier_prog_qubit = self._adjacent_heavier_node(edge, self.prog_graph)
+                ligher_prog_qubit = (
+                    edge[1] if edge[0] == heavier_prog_qubit else edge[0]
+                )
+
+                self.prog2hw[heavier_prog_qubit] = better_adj_hw_qubit
+                self.prog2hw[ligher_prog_qubit] = less_reliab_adj_hw_qubit
+                self.available_hw_qubits.remove(better_adj_hw_qubit)
+                self.available_hw_qubits.remove(less_reliab_adj_hw_qubit)
 
             elif not q1_mapped:
                 best_hw_qubit = self._select_best_remaining_qubit(
@@ -329,7 +371,6 @@ class DistanceMultiLayout(AnalysisPass):
                     if init_dag is not None:
                         self.hw_still_avaible = False
                         self.floaded_dag = next_dag
-                        print("case 2\n")
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed in selected device. "
@@ -386,11 +427,15 @@ class DistanceMultiLayout(AnalysisPass):
             # layout[q] = hwid
             self.layout_dict[q] = hwid
             # print("prog: {} , hw: {}".format(q, hwid))
+
+            # update number of used hw qubits
+            print("hwid", hwid)
+            self.used_hwq += 1
+            self.swap_graph.remove_node(hwid)
+
         self.property_set["layout"] = Layout(input_dict=self.layout_dict)
 
         if init_dag:
             next_dag = self._combine_dag(init_dag, next_dag)
 
-        # update number of used hw qubits
-        self.used_hwq += next_dag.num_qubits()
         return next_dag

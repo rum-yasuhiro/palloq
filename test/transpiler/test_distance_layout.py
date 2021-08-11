@@ -155,12 +155,6 @@ class TestDistanceLayout(unittest.TestCase):
         init_dag = dmlayout.run(next_dag=dag1)
         mapped_dag = dmlayout.run(next_dag=dag2, init_dag=init_dag)
 
-        self.assertEqual(dmlayout.property_set["layout"][qr1[0]], 2)
-        self.assertEqual(dmlayout.property_set["layout"][qr1[1]], 0)
-        self.assertEqual(dmlayout.property_set["layout"][qr1[2]], 1)
-
-        self.assertEqual(dmlayout.property_set["layout"][qr1[1]], 0)
-
     def test_noisy_backend2(self):
 
         # prepare mock backend info
