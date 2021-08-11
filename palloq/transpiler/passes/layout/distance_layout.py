@@ -6,6 +6,7 @@
 import math
 from os import name
 from copy import copy
+from typing import OrderedDict
 
 import networkx as nx
 from qiskit.circuit.classicalregister import ClassicalRegister
@@ -15,7 +16,7 @@ from qiskit.dagcircuit.dagcircuit import DAGCircuit
 
 from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
-from qiskit.transpiler.exceptions import TranspilerError
+from qiskit.transpiler.exceptions import LayoutError, TranspilerError
 from qiskit.providers.models import BackendProperties
 
 
@@ -23,17 +24,11 @@ class DistanceMultiLayout(AnalysisPass):
     def __init__(
         self,
         backend_prop: BackendProperties,
-        coupling_map,
         output_name: str = None,
     ):
 
         super().__init__()
         self.backend_prop = backend_prop
-
-        """TODO
-        coupling_mapを用いた faulty hw qubit checker を追加する
-        """
-        self.coupling_map = coupling_map
 
         self.hw_still_avaible = True
         self.floaded_dag = None
@@ -51,7 +46,10 @@ class DistanceMultiLayout(AnalysisPass):
         self.qarg_to_id = {}
         self.pending_program_edges = []
         self.prog2hw = {}
+        self.layout_dict = OrderedDict()
+        self.used_hwq = 0
 
+        # initialize backend info
         self._initialize_backend_prop()
 
     def _initialize_backend_prop(self):
@@ -130,7 +128,7 @@ class DistanceMultiLayout(AnalysisPass):
         """
         idx = 0
         for q in dag.qubits:
-            self.qarg_to_id[q.register.name + str(q.index)] = idx
+            self.qarg_to_id[q.register.name + str(q.index)] = idx + self.used_hwq
             idx += 1
 
         # every time next_graph is assgined, prog_graph is initialized
@@ -203,9 +201,6 @@ class DistanceMultiLayout(AnalysisPass):
         init_dag: DAGCircuit,
         next_dag: DAGCircuit,
     ) -> DAGCircuit:
-        """TODO
-        二つのdagを結合する
-        """
         # if dag with no bits return initial dag
         next_numq = next_dag.num_qubits()
         next_numc = next_dag.num_clbits()
@@ -257,22 +252,14 @@ class DistanceMultiLayout(AnalysisPass):
 
         if init_numq > 0:
             qubits = combined_dag.qubits[0:init_numq]
-            print("num qubits: ", len(qubits))
         if init_numc > 0:
             clbits = combined_dag.clbits[0:init_numc]
-            print("num clbits: ", len(clbits))
         combined_dag.compose(init_dag, qubits=qubits, clbits=clbits)
 
         if next_numq > 0:
-            print("init_numq: ", init_numq)
-            print("next_numq: ", next_numq)
             qubits = combined_dag.qubits[init_numq : init_numq + next_numq]
-            print("num qubits: ", len(qubits))
         if next_numc > 0:
-            print("init_numc: ", init_numc)
-            print("next_numc: ", next_numc)
             clbits = combined_dag.clbits[init_numc : init_numc + next_numc]
-            print("num clbits: ", len(clbits))
         combined_dag.compose(next_dag, qubits=qubits, clbits=clbits)
 
         return combined_dag
@@ -286,24 +273,26 @@ class DistanceMultiLayout(AnalysisPass):
         # Combine init_dag and next_dag
         # Return init_dag
 
+        # initialize dag as program graphs
         num_qubits = self._create_program_graphs(dag=next_dag)
 
         # check the hardware availability
         if num_qubits > len(self.available_hw_qubits):
-            self.hw_still_avaible = False
-            self.floaded_dag = next_dag
-            return init_dag
+            print("nq: ", num_qubits, "ahwq: ", self.available_hw_qubits)
+            if init_dag:
+                self.hw_still_avaible = False
+                self.floaded_dag = next_dag
+                print("case 0\n")
+                return init_dag
+            raise LayoutError("some thing is wrong BackendPropertie")
 
         # sort program sub-graphs by weight
-
         self.pending_program_edges = sorted(
             self.prog_graph.edges(data=True),
-            key=lambda x: [x[2]["weight"], -x[0], -x[1]],
+            key=lambda x: x[2].get("weight", 1),
             reverse=True,
         )
-
         while self.pending_program_edges:
-
             edge = self._select_next_edge()
             q1_mapped = edge[0] in self.prog2hw
             q2_mapped = edge[1] in self.prog2hw
@@ -317,6 +306,7 @@ class DistanceMultiLayout(AnalysisPass):
                     if init_dag is not None:
                         self.hw_still_avaible = False
                         self.floaded_dag = next_dag
+                        print("case 1\n")
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed "
@@ -339,6 +329,7 @@ class DistanceMultiLayout(AnalysisPass):
                     if init_dag is not None:
                         self.hw_still_avaible = False
                         self.floaded_dag = next_dag
+                        print("case 2\n")
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed in selected device. "
@@ -362,6 +353,7 @@ class DistanceMultiLayout(AnalysisPass):
                     if init_dag is not None:
                         self.hw_still_avaible = False
                         self.floaded_dag = next_dag
+                        print("case 3\n")
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed in selected device. "
@@ -388,15 +380,17 @@ class DistanceMultiLayout(AnalysisPass):
                 self.prog2hw[qid] = self.available_hw_qubits[0]
                 self.available_hw_qubits.remove(self.prog2hw[qid])
 
-        layout_dict = {}
         for q in next_dag.qubits:
             pid = self._qarg_to_id(q)
             hwid = self.prog2hw[pid]
             # layout[q] = hwid
-            layout_dict[q] = hwid
-            print("prog: {} , hw: {}".format(q, hwid))
-        self.property_set["layout"] = Layout(input_dict=layout_dict)
+            self.layout_dict[q] = hwid
+            # print("prog: {} , hw: {}".format(q, hwid))
+        self.property_set["layout"] = Layout(input_dict=self.layout_dict)
 
         if init_dag:
             next_dag = self._combine_dag(init_dag, next_dag)
+
+        # update number of used hw qubits
+        self.used_hwq += next_dag.num_qubits()
         return next_dag
