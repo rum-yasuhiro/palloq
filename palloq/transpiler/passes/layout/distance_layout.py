@@ -24,6 +24,7 @@ class DistanceMultiLayout(AnalysisPass):
     def __init__(
         self,
         backend_prop: BackendProperties,
+        n_hop=0,
         output_name: str = None,
     ):
 
@@ -33,6 +34,7 @@ class DistanceMultiLayout(AnalysisPass):
         self.hw_still_avaible = True
         self.floaded_dag = None
 
+        self.n_hop = n_hop
         self.output_name = output_name
         self.consumed_hw_edges = []
         self.swap_graph = nx.Graph()
@@ -292,6 +294,20 @@ class DistanceMultiLayout(AnalysisPass):
 
         return num_hw_qubits
 
+    def _disable_qubits(self, hw_qubit, n=0):
+        """disable qubits adjacent to used qubit in n hop range"""
+        if n == 1:
+            adj_list = [
+                adj
+                for adj in nx.all_neighbors(self.swap_graph, hw_qubit)
+                if adj in self.available_hw_qubits
+            ]
+            for adj in adj_list:
+                self.swap_graph.remove_node(adj)
+                self.available_hw_qubits.remove(adj)
+
+        self.swap_graph.remove_node(hw_qubit)
+
     def run(self, next_dag: DAGCircuit, init_dag=None):
         """Run the DistanceMultiLayout pass on `list of dag`."""
 
@@ -424,7 +440,10 @@ class DistanceMultiLayout(AnalysisPass):
 
             # update number of used hw qubits
             self.used_hwq += 1
-            self.swap_graph.remove_node(hwid)
+
+            # disable n hop qubits
+            self._disable_qubits(hwid, n=self.n_hop)
+            #
 
         self.property_set["layout"] = Layout(input_dict=self.layout_dict)
 

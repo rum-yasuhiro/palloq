@@ -158,6 +158,17 @@ class TestDistanceLayout(unittest.TestCase):
         self.assertEqual(initial_layout[0], qr1[2])
         self.assertEqual(initial_layout[5], qr2[0])
 
+        # initialize and run dmlayout
+        dmlayout = DistanceMultiLayout(
+            backend_prop=bprop,
+            n_hop=1,
+        )
+        init_dag = dmlayout.run(next_dag=dag1)
+        mapped_dag = dmlayout.run(next_dag=dag2, init_dag=init_dag)
+        initial_layout = dmlayout.property_set["layout"]
+        self.assertEqual(initial_layout[0], qr1[2])
+        self.assertEqual(init_dag, mapped_dag)
+
     def test_noisy_backend2(self):
 
         # prepare mock backend info
