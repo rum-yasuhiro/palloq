@@ -154,6 +154,9 @@ class TestDistanceLayout(unittest.TestCase):
         )
         init_dag = dmlayout.run(next_dag=dag1)
         mapped_dag = dmlayout.run(next_dag=dag2, init_dag=init_dag)
+        initial_layout = dmlayout.property_set["layout"]
+        self.assertEqual(initial_layout[0], qr1[2])
+        self.assertEqual(initial_layout[5], qr2[0])
 
     def test_noisy_backend2(self):
 
@@ -212,14 +215,9 @@ class TestDistanceLayout(unittest.TestCase):
         )
 
         init_dag = dmlayout.run(next_dag=dag1)
-        # print(dmlayout.available_hw_qubits)
-        print(dmlayout.property_set["layout"])
         mapped_dag = dmlayout.run(next_dag=dag2, init_dag=init_dag)
-        # print(dmlayout.available_hw_qubits)
-        print(dmlayout.property_set["layout"])
 
-        self.assertNotEqual(dmlayout.property_set["layout"][qr1[0]], 0)
-        self.assertNotEqual(dmlayout.property_set["layout"][qr1[1]], 0)
+        self.assertEqual(init_dag, mapped_dag)
 
 
 if __name__ == "__main__":

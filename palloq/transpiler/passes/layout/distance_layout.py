@@ -69,9 +69,6 @@ class DistanceMultiLayout(AnalysisPass):
                 self.swap_graph.add_edge(
                     ginfo.qubits[0], ginfo.qubits[1], weight=swap_cost
                 )
-                self.swap_graph.add_edge(
-                    ginfo.qubits[1], ginfo.qubits[0], weight=swap_cost
-                )
                 self.cx_reliability[(ginfo.qubits[0], ginfo.qubits[1])] = g_reliab
                 self.gate_list.append((ginfo.qubits[0], ginfo.qubits[1]))
 
@@ -394,7 +391,6 @@ class DistanceMultiLayout(AnalysisPass):
                     if init_dag is not None:
                         self.hw_still_avaible = False
                         self.floaded_dag = next_dag
-                        print("case 3\n")
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed in selected device. "
@@ -424,12 +420,9 @@ class DistanceMultiLayout(AnalysisPass):
         for q in next_dag.qubits:
             pid = self._qarg_to_id(q)
             hwid = self.prog2hw[pid]
-            # layout[q] = hwid
             self.layout_dict[q] = hwid
-            # print("prog: {} , hw: {}".format(q, hwid))
 
             # update number of used hw qubits
-            print("hwid", hwid)
             self.used_hwq += 1
             self.swap_graph.remove_node(hwid)
 
