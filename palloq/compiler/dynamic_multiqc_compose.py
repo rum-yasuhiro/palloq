@@ -26,6 +26,7 @@ from qiskit.dagcircuit import DAGCircuit
 from qiskit.providers import BaseBackend
 from qiskit.providers.backend import Backend
 from qiskit.providers.models import BackendProperties
+from qiskit.compiler import transpile
 
 from palloq.transpiler.passes.layout.distance_layout import DistanceMultiLayout
 
@@ -39,7 +40,7 @@ def dynamic_multiqc_compose(
     basis_gates: Optional[List[str]] = None,
     coupling_map: Optional[Union[CouplingMap, List[List[int]]]] = None,
     backend_properties: Optional[BackendProperties] = None,
-    layout_method: Optional[str] = "distance_multiplelayout",
+    num_hw_dist=0,
     num_idle_qubits=0,
     output_name: Optional[Union[str, List[str]]] = None,
 ) -> List[Tuple[QuantumCircuit, dict]]:
@@ -69,16 +70,26 @@ def dynamic_multiqc_compose(
     backend_properties = _backend_properties(backend_properties, backend)
     coupling_map = _coupling_map(coupling_map, backend)
 
+    # decompose all queued qc by basis_gate
+    if basis_gates:
+        pass
+    elif backend.configuration().basis_gates:
+        basis_gates = backend.configuration().basis_gates
+    else:
+        basis_gates = ["id", "rz", "sx", "x", "cx", "reset"]
+    queued_qc = [transpile(_qc, basis_gates=basis_gates) for _qc in queued_qc]
+
     # repeat untill all queued qcs are assgined
     composed_circuits = []
     while len(queued_qc) > 0:
-        comp_qc, queued_qc = _sequential_layout(
+        comp_qc, layout, queued_qc = _sequential_layout(
             queued_qc,
             len(backend_properties.qubits),
             backend_properties,
             coupling_map,
+            num_hw_dist,
         )
-        composed_circuits.append(comp_qc)
+        composed_circuits.append((comp_qc, layout))
 
     # apply qiskit pass managers except for layout pass
     """TODO
@@ -94,28 +105,30 @@ def _sequential_layout(
     num_hw_qubits,
     backend_properties,
     coupling_map,
+    num_hw_dist,
 ) -> Tuple[QuantumCircuit, List[QuantumCircuit]]:
 
-    init_dag = None
-    dist_layout = DistanceMultiLayout(
+    allocated_dag = None
+    dmlayout = DistanceMultiLayout(
         backend_properties,
+        n_hop=num_hw_dist,
     )
 
-    while dist_layout.hw_still_avaible:
+    while dmlayout.hw_still_avaible:
         if not queued_circuits:
             break
-        next_qc = _select_next_qc(queued_circuits)
-        next_dag = circuit_to_dag(next_qc)
-        init_dag = dist_layout.run(next_dag, init_dag)
+        qc = _select_next_qc(queued_circuits)
+        dag = circuit_to_dag(qc)
+        allocated_dag = dmlayout.run(next_dag=dag, init_dag=allocated_dag)
 
-    if dist_layout.floaded_dag:
-        floaded_qc = dag_to_circuit(dist_layout.floaded_dag)
+    if dmlayout.floaded_dag:
+        floaded_qc = dag_to_circuit(dmlayout.floaded_dag)
         queued_circuits.append(floaded_qc)
 
-    composed_circuit = dag_to_circuit(init_dag)
-    layout = dist_layout.property_set["layout"]
+    composed_circuit = dag_to_circuit(allocated_dag)
+    layout = dmlayout.property_set["layout"]
 
-    return composed_circuit, queued_circuits
+    return composed_circuit, layout, queued_circuits
 
 
 def _select_next_qc(queue: List[QuantumCircuit]) -> QuantumCircuit:
