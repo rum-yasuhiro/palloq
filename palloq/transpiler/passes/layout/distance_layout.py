@@ -50,6 +50,7 @@ class DistanceMultiLayout(AnalysisPass):
         self.prog2hw = {}
         self.layout_dict = OrderedDict()
         self.used_hwq = 0
+        self.reg_name_list = []
 
         # initialize backend info
         self._initialize_backend_prop()
@@ -233,35 +234,35 @@ class DistanceMultiLayout(AnalysisPass):
 
         # add empty qregs to combined_dag based on init_dag and next_dag's info
         init_qregs = init_dag.qregs
-        for _name, _qreg in init_qregs.items():
+        for i, _qreg in enumerate(init_qregs.values()):
             _qr = QuantumRegister(
                 size=_qreg.size,
-                name=_name,
+                name=None,
             )
             combined_dag.add_qreg(_qr)
         if next_numq > 0:
             next_qregs = next_dag.qregs
-            for _name, _qreg in next_qregs.items():
+            for i, _qreg in enumerate(next_qregs.values()):
                 _qr = QuantumRegister(
                     size=_qreg.size,
-                    name=_name,
+                    name=None,
                 )
                 combined_dag.add_qreg(_qr)
 
         # add empty cregs to combined_dag based on init_dag and next_dag's info
         init_cregs = init_dag.cregs
-        for _name, _creg in init_cregs.items():
+        for i, _creg in enumerate(init_cregs.values()):
             _cr = ClassicalRegister(
                 size=_creg.size,
-                name=_name,
+                name=None,
             )
             combined_dag.add_creg(_cr)
         if next_numc > 0:
             next_cregs = next_dag.cregs
-            for _name, _creg in next_cregs.items():
+            for i, _creg in enumerate(next_cregs.values()):
                 _cr = ClassicalRegister(
                     size=_creg.size,
-                    name=_name,
+                    name=None,
                 )
                 combined_dag.add_creg(_cr)
 
@@ -277,11 +278,32 @@ class DistanceMultiLayout(AnalysisPass):
             clbits = combined_dag.clbits[0:init_numc]
         combined_dag.compose(init_dag, qubits=qubits, clbits=clbits)
 
+        # update layout values (Qubit)
+        for _qubit_init, _qubit_combined in zip(init_dag.qubits, qubits):
+            if _qubit_init in self.layout_dict:
+                self.layout_dict[_qubit_combined] = self.layout_dict.pop(_qubit_init)
+
+        # update layout values (Clbit)
+        for _clbit_init, _clbit_combined in zip(init_dag.clbits, clbits):
+            if _clbit_init in self.layout_dict:
+                self.layout_dict[_clbit_combined] = self.layout_dict.pop(_clbit_init)
+        
         if next_numq > 0:
             qubits = combined_dag.qubits[init_numq : init_numq + next_numq]
         if next_numc > 0:
             clbits = combined_dag.clbits[init_numc : init_numc + next_numc]
         combined_dag.compose(next_dag, qubits=qubits, clbits=clbits)
+
+        # update layout values (Qubit)
+        for _qubit_next, _qubit_combined in zip(next_dag.qubits, qubits):
+            if _qubit_next in self.layout_dict:
+                self.layout_dict[_qubit_combined] = self.layout_dict.pop(_qubit_next)
+
+        # update layout values (Clbit)
+        for _clbit_next, _clbit_combined in zip(next_dag.clbits, clbits):
+            if _clbit_next in self.layout_dict:
+                self.layout_dict[_clbit_combined] = self.layout_dict.pop(_clbit_next)
+
 
         return combined_dag
 
@@ -443,11 +465,10 @@ class DistanceMultiLayout(AnalysisPass):
 
             # disable n hop qubits
             self._disable_qubits(hwid, n=self.n_hop)
-            #
-
-        self.property_set["layout"] = Layout(input_dict=self.layout_dict)
 
         if init_dag:
             next_dag = self._combine_dag(init_dag, next_dag)
+
+        self.property_set["layout"] = Layout(input_dict=self.layout_dict)
 
         return next_dag

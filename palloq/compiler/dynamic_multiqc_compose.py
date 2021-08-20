@@ -7,6 +7,7 @@ import logging
 import warnings
 from time import time
 from typing import List, Union, Dict, Callable, Any, Optional, Tuple
+from networkx.algorithms.components.connected import connected_components
 
 from qiskit import user_config
 from qiskit.circuit.quantumcircuit import (
@@ -15,7 +16,8 @@ from qiskit.circuit.quantumcircuit import (
     ClassicalRegister,
 )
 from qiskit.circuit.quantumregister import Qubit
-from qiskit.transpiler import CouplingMap
+from qiskit.test.mock.fake_pulse_backend import FakePulseBackend
+from qiskit.transpiler import CouplingMap, coupling
 from qiskit.converters import (
     isinstanceint,
     isinstancelist,
@@ -38,11 +40,14 @@ def dynamic_multiqc_compose(
     queued_qc: List[QuantumCircuit],
     backend: Optional[Union[Backend, BaseBackend]] = None,
     basis_gates: Optional[List[str]] = None,
-    coupling_map: Optional[Union[CouplingMap, List[List[int]]]] = None,
     backend_properties: Optional[BackendProperties] = None,
+    coupling_map=None,
+    routing_method=None,
+    scheduling_method=None,
     num_hw_dist=0,
     num_idle_qubits=0,
     output_name: Optional[Union[str, List[str]]] = None,
+    return_num_usage= False,
 ) -> List[Tuple[QuantumCircuit, dict]]:
     """Mapping several circuits to single circuit based on calibration for the backend
 
@@ -68,43 +73,52 @@ def dynamic_multiqc_compose(
         )
     # get backend information
     backend_properties = _backend_properties(backend_properties, backend)
-    coupling_map = _coupling_map(coupling_map, backend)
+    coupling_map = _coupling_map(coupling_map=coupling_map, backend=backend)
 
     # decompose all queued qc by basis_gate
     if basis_gates:
         pass
-    elif backend.configuration().basis_gates:
+    elif backend:
         basis_gates = backend.configuration().basis_gates
     else:
         basis_gates = ["id", "rz", "sx", "x", "cx", "reset"]
     queued_qc = [transpile(_qc, basis_gates=basis_gates) for _qc in queued_qc]
 
-    # repeat untill all queued qcs are assgined
+    # repeat until all queued qcs are assigned
     composed_circuits = []
     while len(queued_qc) > 0:
         comp_qc, layout, queued_qc = _sequential_layout(
             queued_qc,
             len(backend_properties.qubits),
             backend_properties,
-            coupling_map,
             num_hw_dist,
         )
         composed_circuits.append((comp_qc, layout))
 
     # apply qiskit pass managers except for layout pass
-    """TODO
-    transpiled_multi_circuits = list(map(pass_manager.run, multi_circuits))
-    if len(transpiled_multi_circuits) == 1:
-        return transpiled_multi_circuits[0]
-    return transpiled_multi_circuits
-    """
+    transpiled_circuit = []
+    num_usage = []
+    for comp_qc, layout in composed_circuits:
+        num_usage.append(comp_qc.num_qubits)
+        _transpied = transpile(
+            circuits=comp_qc,
+            backend=backend,
+            backend_properties=backend_properties,
+            initial_layout=layout,
+            routing_method=routing_method,
+            scheduling_method=scheduling_method,
+        )
+        transpiled_circuit.append(_transpied)
+
+    if return_num_usage: 
+        transpiled_circuit, num_usage 
+    return transpiled_circuit
 
 
 def _sequential_layout(
     queued_circuits,
     num_hw_qubits,
     backend_properties,
-    coupling_map,
     num_hw_dist,
 ) -> Tuple[QuantumCircuit, List[QuantumCircuit]]:
 
