@@ -111,7 +111,7 @@ def dynamic_multiqc_compose(
         transpiled_circuit.append(_transpied)
 
     if return_num_usage: 
-        transpiled_circuit, num_usage 
+        return transpiled_circuit, num_usage 
     return transpiled_circuit
 
 
@@ -128,13 +128,13 @@ def _sequential_layout(
         n_hop=num_hw_dist,
     )
 
-    while dmlayout.hw_still_avaible:
-        if not queued_circuits:
+    while queued_circuits:
+        if not dmlayout.hw_still_avaible:
             break
         qc = _select_next_qc(queued_circuits)
         dag = circuit_to_dag(qc)
         allocated_dag = dmlayout.run(next_dag=dag, init_dag=allocated_dag)
-
+    
     if dmlayout.floaded_dag:
         floaded_qc = dag_to_circuit(dmlayout.floaded_dag)
         queued_circuits.append(floaded_qc)

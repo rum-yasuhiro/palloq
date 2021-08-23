@@ -33,6 +33,7 @@ class DistanceMultiLayout(AnalysisPass):
 
         self.hw_still_avaible = True
         self.floaded_dag = None
+        self.largest_hw_qubits = len(backend_prop.qubits)
 
         self.n_hop = n_hop
         self.output_name = output_name
@@ -308,13 +309,10 @@ class DistanceMultiLayout(AnalysisPass):
         return combined_dag
 
     def _largest_connected_hw_qubits(self):
-        num_hw_qubits = 0
-
         for hw_qubit_set in nx.connected_components(self.swap_graph):
-            if len(hw_qubit_set) >= num_hw_qubits:
-                num_hw_qubits = len(hw_qubit_set)
-
-        return num_hw_qubits
+            if len(hw_qubit_set) >= self.largest_hw_qubits:
+                self.largest_hw_qubits = len(hw_qubit_set)
+        
 
     def _disable_qubits(self, hw_qubit, n=0):
         """disable qubits adjacent to used qubit in n hop range"""
@@ -343,12 +341,10 @@ class DistanceMultiLayout(AnalysisPass):
         num_qubits = self._create_program_graphs(dag=next_dag)
 
         # check the hardware availability
-        if num_qubits > self._largest_connected_hw_qubits():
-            if init_dag:
-                self.hw_still_avaible = False
-                self.floaded_dag = next_dag
-                return init_dag
-            raise LayoutError("some thing is wrong BackendPropertie")
+        # if num_qubits > largest_connected_hw_qubits:
+        #     self.hw_still_avaible = False
+        #     self.floaded_dag = next_dag
+        #     return init_dag
 
         # sort program sub-graphs by weight
         self.pending_program_edges = sorted(
@@ -469,6 +465,20 @@ class DistanceMultiLayout(AnalysisPass):
         if init_dag:
             next_dag = self._combine_dag(init_dag, next_dag)
 
+        """FIXME
+        入力量子回路の順番によって、なぜかlayoutにはない量子回路が追加されるバグが生じることがある
+        バグが生じる際、
+        len(self.layout_dict.keys())
+        が、更新されなくなる部分が出てくることまで確認できている↓
+        
+        else:
+            print("Initialized!\n")
+        print(self.property_set["layout"])
+        print(self.layout_dict)
+        print(len(self.layout_dict.keys()))
+        """
+        
         self.property_set["layout"] = Layout(input_dict=self.layout_dict)
 
+        self._largest_connected_hw_qubits()
         return next_dag
