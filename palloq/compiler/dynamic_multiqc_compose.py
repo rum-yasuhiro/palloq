@@ -3,13 +3,14 @@
 #
 
 """Multi Circuits transpile function"""
+import enum
 import logging
 import warnings
 from time import time
 from typing import List, Union, Dict, Callable, Any, Optional, Tuple
 from networkx.algorithms.components.connected import connected_components
 
-from qiskit import user_config
+from qiskit import circuit, user_config
 from qiskit.circuit.quantumcircuit import (
     QuantumCircuit,
     QuantumRegister,
@@ -84,21 +85,28 @@ def dynamic_multiqc_compose(
         basis_gates = ["id", "rz", "sx", "x", "cx", "reset"]
     queued_qc = [transpile(_qc, basis_gates=basis_gates) for _qc in queued_qc]
 
+    # alter the register name identically
+    queued_qc = _alter_reg_names(queued_qc)
+
     # repeat until all queued qcs are assigned
     composed_circuits = []
+    name_list_list = []
     while len(queued_qc) > 0:
-        comp_qc, layout, queued_qc = _sequential_layout(
+        comp_qc, layout, name_list, queued_qc = _sequential_layout(
             queued_qc,
             len(backend_properties.qubits),
             backend_properties,
             num_hw_dist,
         )
         composed_circuits.append((comp_qc, layout))
+        name_list_list.append(name_list)
 
     # apply qiskit pass managers except for layout pass
     transpiled_circuit = []
     num_usage = []
     for comp_qc, layout in composed_circuits:
+        print("Num Qubits in QC: ", comp_qc.num_qubits)
+        print("Layout: ", layout)
         num_usage.append(comp_qc.num_qubits)
         _transpied = transpile(
             circuits=comp_qc,
@@ -111,7 +119,7 @@ def dynamic_multiqc_compose(
         transpiled_circuit.append(_transpied)
 
     if return_num_usage: 
-        return transpiled_circuit, num_usage 
+        return transpiled_circuit, num_usage, name_list_list
     return transpiled_circuit
 
 
@@ -129,29 +137,36 @@ def _sequential_layout(
     )
 
     num_cx_before = 0
+    qc_names = []
+    
     while queued_circuits:
         if not dmlayout.hw_still_avaible:
             break
+        
         qc, num_cx = _select_next_qc(queued_circuits)
 
         # check difference of number of CX gate to previous mapped QC
         if num_cx > num_cx_before + 10:
             break
+
         dag = circuit_to_dag(qc)
         allocated_dag = dmlayout.run(next_dag=dag, init_dag=allocated_dag)
 
         # update number of CX pointer
         num_cx_before = num_cx
 
+        # save qc name
+        qc_names.append(qc.name)
 
     if dmlayout.floaded_dag:
         floaded_qc = dag_to_circuit(dmlayout.floaded_dag)
         queued_circuits.append(floaded_qc)
+        qc_names.pop()
 
     composed_circuit = dag_to_circuit(allocated_dag)
     layout = dmlayout.property_set["layout"]
 
-    return composed_circuit, layout, queued_circuits
+    return composed_circuit, layout, qc_names, queued_circuits
 
 
 def _select_next_qc(queue: List[QuantumCircuit]) -> QuantumCircuit:
@@ -160,6 +175,33 @@ def _select_next_qc(queue: List[QuantumCircuit]) -> QuantumCircuit:
     num_cx = next_qc.count_ops().get("cx", 0)
     return next_qc, num_cx
 
+def _alter_reg_names(queue: List[QuantumCircuit]) -> List[QuantumCircuit]:
+    
+    new_queue = []
+    for i, _qc in enumerate(queue): 
+        new_qc = QuantumCircuit(name=_qc.name)
+        # add quantum register
+        for k, _qreg in enumerate(_qc.qregs):
+            num_qubits = _qreg.size
+            qreg_name = _qc.name + "_"+ str(i)+ "_"+ str(k) if _qc.name else "q_"+ str(i)+ "_"+ str(k)
+            new_qreg = QuantumRegister(size=num_qubits, name=qreg_name)
+            new_qc.add_register(new_qreg)
+        
+        for k, _creg in enumerate(_qc.cregs):
+            num_clbits = _creg.size
+            creg_name = _creg.name + "_"+ str(i)+ "_"+ str(k) if _creg.name else "c_"+ str(i)+ "_"+ str(k)
+            new_creg = ClassicalRegister(size=num_clbits, name=creg_name)
+            new_qc.add_register(new_creg)
+
+        print("num qubits: ", _qc.num_qubits)
+        print("num new qubits: ", new_qc.num_qubits)
+        _dag = circuit_to_dag(_qc)
+        new_dag = circuit_to_dag(new_qc)
+
+        new_dag.compose(_dag, qubits=new_dag.qubits, clbits=new_dag.clbits)
+
+        new_queue.append(dag_to_circuit(new_dag))
+    return new_queue
 
 def _backend_properties(backend_properties, backend):
     if backend_properties is None:

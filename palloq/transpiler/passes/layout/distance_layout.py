@@ -238,7 +238,7 @@ class DistanceMultiLayout(AnalysisPass):
         for i, _qreg in enumerate(init_qregs.values()):
             _qr = QuantumRegister(
                 size=_qreg.size,
-                name=None,
+                name=_qreg.name,
             )
             combined_dag.add_qreg(_qr)
         if next_numq > 0:
@@ -246,7 +246,7 @@ class DistanceMultiLayout(AnalysisPass):
             for i, _qreg in enumerate(next_qregs.values()):
                 _qr = QuantumRegister(
                     size=_qreg.size,
-                    name=None,
+                    name=_qreg.name,
                 )
                 combined_dag.add_qreg(_qr)
 
@@ -255,7 +255,7 @@ class DistanceMultiLayout(AnalysisPass):
         for i, _creg in enumerate(init_cregs.values()):
             _cr = ClassicalRegister(
                 size=_creg.size,
-                name=None,
+                name=_creg.name,
             )
             combined_dag.add_creg(_cr)
         if next_numc > 0:
@@ -263,7 +263,7 @@ class DistanceMultiLayout(AnalysisPass):
             for i, _creg in enumerate(next_cregs.values()):
                 _cr = ClassicalRegister(
                     size=_creg.size,
-                    name=None,
+                    name=_creg.name,
                 )
                 combined_dag.add_creg(_cr)
 
@@ -342,7 +342,7 @@ class DistanceMultiLayout(AnalysisPass):
 
         # initialize dag as program graphs
         num_qubits = self._create_program_graphs(dag=next_dag)
-        print("self.largest_hw_qubits", self.largest_hw_qubits)
+        # print("self.largest_hw_qubits", self.largest_hw_qubits)
 
         # check the hardware availability
         if num_qubits > self.largest_hw_qubits:
@@ -456,6 +456,7 @@ class DistanceMultiLayout(AnalysisPass):
                 self.prog2hw[qid]  = self.available_hw_qubits[0]
                 self.available_hw_qubits.remove(self.prog2hw[qid])
 
+        print("before layout: \n", self.layout_dict)
         for q in next_dag.qubits:
             pid = self._qarg_to_id(q)
             hwid = self.prog2hw[pid]
@@ -466,10 +467,17 @@ class DistanceMultiLayout(AnalysisPass):
 
             # disable n hop qubits
             self._disable_qubits(hwid, n=self.n_hop)
+        print("after layout: \n", self.layout_dict)
 
         if init_dag:
+            print("Before Num qubit: ", len(init_dag.qubits))
             next_dag = self._combine_dag(init_dag, next_dag)
-
+            print("After Num qubit: ", len(next_dag.qubits), len(self.layout_dict.keys()))
+        else:
+            print("Initialized!\n")
+            print("After Num qubit: ", len(next_dag.qubits), len(self.layout_dict.keys()))
+        
+        print("\n################################################### \n")
         """FIXME
         入力量子回路の順番によって、なぜかlayoutにはない量子回路が追加されるバグが生じることがある
         バグが生じる際、
@@ -478,9 +486,7 @@ class DistanceMultiLayout(AnalysisPass):
         
         else:
             print("Initialized!\n")
-        print(self.property_set["layout"])
-        print(self.layout_dict)
-        print(len(self.layout_dict.keys()))
+        print("Num Prog qubits: ", len(self.layout_dict.keys()))
         """
         
         self.property_set["layout"] = Layout(input_dict=self.layout_dict)
