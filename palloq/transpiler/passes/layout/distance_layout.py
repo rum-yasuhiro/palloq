@@ -309,6 +309,8 @@ class DistanceMultiLayout(AnalysisPass):
         return combined_dag
 
     def _largest_connected_hw_qubits(self):
+        self.largest_hw_qubits = 0
+
         for hw_qubit_set in nx.connected_components(self.swap_graph):
             if len(hw_qubit_set) >= self.largest_hw_qubits:
                 self.largest_hw_qubits = len(hw_qubit_set)
@@ -316,6 +318,7 @@ class DistanceMultiLayout(AnalysisPass):
 
     def _disable_qubits(self, hw_qubit, n=0):
         """disable qubits adjacent to used qubit in n hop range"""
+
         if n == 1:
             adj_list = [
                 adj
@@ -327,7 +330,7 @@ class DistanceMultiLayout(AnalysisPass):
                 self.available_hw_qubits.remove(adj)
 
         self.swap_graph.remove_node(hw_qubit)
-
+        
     def run(self, next_dag: DAGCircuit, init_dag=None):
         """Run the DistanceMultiLayout pass on `list of dag`."""
 
@@ -339,12 +342,13 @@ class DistanceMultiLayout(AnalysisPass):
 
         # initialize dag as program graphs
         num_qubits = self._create_program_graphs(dag=next_dag)
+        print("self.largest_hw_qubits", self.largest_hw_qubits)
 
         # check the hardware availability
-        # if num_qubits > largest_connected_hw_qubits:
-        #     self.hw_still_avaible = False
-        #     self.floaded_dag = next_dag
-        #     return init_dag
+        if num_qubits > self.largest_hw_qubits:
+            self.hw_still_avaible = False
+            self.floaded_dag = next_dag
+            return init_dag
 
         # sort program sub-graphs by weight
         self.pending_program_edges = sorted(
@@ -447,8 +451,9 @@ class DistanceMultiLayout(AnalysisPass):
             self.pending_program_edges = new_edges
 
         for qid in self.qarg_to_id.values():
+
             if qid not in self.prog2hw:
-                self.prog2hw[qid] = self.available_hw_qubits[0]
+                self.prog2hw[qid]  = self.available_hw_qubits[0]
                 self.available_hw_qubits.remove(self.prog2hw[qid])
 
         for q in next_dag.qubits:

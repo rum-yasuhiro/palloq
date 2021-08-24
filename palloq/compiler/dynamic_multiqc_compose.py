@@ -128,13 +128,22 @@ def _sequential_layout(
         n_hop=num_hw_dist,
     )
 
+    num_cx_before = 0
     while queued_circuits:
         if not dmlayout.hw_still_avaible:
             break
-        qc = _select_next_qc(queued_circuits)
+        qc, num_cx = _select_next_qc(queued_circuits)
+
+        # check difference of number of CX gate to previous mapped QC
+        if num_cx > num_cx_before + 10:
+            break
         dag = circuit_to_dag(qc)
         allocated_dag = dmlayout.run(next_dag=dag, init_dag=allocated_dag)
-    
+
+        # update number of CX pointer
+        num_cx_before = num_cx
+
+
     if dmlayout.floaded_dag:
         floaded_qc = dag_to_circuit(dmlayout.floaded_dag)
         queued_circuits.append(floaded_qc)
@@ -146,10 +155,10 @@ def _sequential_layout(
 
 
 def _select_next_qc(queue: List[QuantumCircuit]) -> QuantumCircuit:
-    """FIXME"""
-    # 何かしらの最適化処理を追記する
+    queue.sort(key = lambda x : x.count_ops().get("cx", 0))
     next_qc = queue.pop(0)
-    return next_qc
+    num_cx = next_qc.count_ops().get("cx", 0)
+    return next_qc, num_cx
 
 
 def _backend_properties(backend_properties, backend):
