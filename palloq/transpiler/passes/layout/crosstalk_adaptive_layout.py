@@ -129,7 +129,16 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
                     cx_err *= crosstalk_ratio
                 cx_err = cx_err if cx_err <= 0.9999 else 0.9999
                 #################
-                print("Updated", edge, ':', xtalk_edge, " from ", _tmp_cx_err, " to ", cx_err)
+                print(
+                    "Updated",
+                    edge,
+                    ":",
+                    xtalk_edge,
+                    " from ",
+                    _tmp_cx_err,
+                    " to ",
+                    cx_err,
+                )
                 ################
                 self.cx_reliability[xtalk_edge] = 1 - cx_err
 
@@ -249,15 +258,17 @@ class CrosstalkAdaptiveMultiLayout(AnalysisPass):
 
     def _correct_xtalk_prop_keys(self):
         corrected_prop = {}
-        for twoQcon, xtalk_dict in self.crosstalk_prop.items(): 
+        for twoQcon, xtalk_dict in self.crosstalk_prop.items():
             corrected_dict = {}
-            corrected_twoQcon = (min(twoQcon[0], twoQcon[1]), max(twoQcon[0], twoQcon[1]))
-            for pair, xtalk_ratio in xtalk_dict.items(): 
+            corrected_twoQcon = (
+                min(twoQcon[0], twoQcon[1]),
+                max(twoQcon[0], twoQcon[1]),
+            )
+            for pair, xtalk_ratio in xtalk_dict.items():
                 corrected_pair = (min(pair[0], pair[1]), max(pair[0], pair[1]))
                 corrected_dict[corrected_pair] = xtalk_ratio
             corrected_prop[corrected_twoQcon] = corrected_dict
         self.crosstalk_prop = corrected_prop
-
 
     def run(self, dag):
         """Run the CrosstalkAdaptiveLayout pass on `list of dag`."""
