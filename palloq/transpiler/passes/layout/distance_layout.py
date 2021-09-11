@@ -319,18 +319,41 @@ class DistanceMultiLayout(AnalysisPass):
     def _disable_qubits(self, hw_qubit, n=0):
         """disable qubits adjacent to used qubit in n hop range"""
 
-        if n == 1:
-            adj_list = [
-                adj
-                for adj in nx.all_neighbors(self.swap_graph, hw_qubit)
-                if adj in self.available_hw_qubits
+        disable_list = []
+        
+        if n >= 1:
+            adj_1_list = [
+                adj_1
+                for adj_1 in nx.all_neighbors(self.swap_graph, hw_qubit)
+                if adj_1 in self.available_hw_qubits
             ]
-            for adj in adj_list:
-                self.swap_graph.remove_node(adj)
-                self.available_hw_qubits.remove(adj)
+            disable_list = adj_1_list
+            if n >= 2:
+                adj_2_list = []
+                for _adj_1 in adj_1_list:
+                    adj_2_list += [
+                        adj_2
+                        for adj_2 in nx.all_neighbors(self.swap_graph, _adj_1)
+                        if adj_2 in self.available_hw_qubits
+                    ]
+                disable_list = disable_list + adj_2_list
+                if n >=3: 
+                    adj_3_list = []
+                    for _adj_2 in adj_2_list:
+                        adj_3_list += [
+                            adj_3
+                            for adj_3 in nx.all_neighbors(self.swap_graph, _adj_2)
+                            if adj_3 in self.available_hw_qubits
+                        ]
+                    disable_list = disable_list + adj_3_list
+
+        disable_list = list(set(disable_list))
+
+        for adj in disable_list: 
+            self.available_hw_qubits.remove(adj)
 
         self.swap_graph.remove_node(hw_qubit)
-        
+
     def run(self, next_dag: DAGCircuit, init_dag=None):
         """Run the DistanceMultiLayout pass on `list of dag`."""
 

@@ -1,23 +1,18 @@
-# 2020/12/3
+# 2020 / 12 / 03
 # qiskit version: 0.23.1
 #
 
-"""Multi Circuits transpile function"""
+# import python tools
 import logging
-import warnings
-from time import time
 from typing import List, Union, Dict, Callable, Any, Optional, Tuple
 
-from qiskit import user_config
+# import qiskit tools
 from qiskit.circuit.quantumcircuit import (
     QuantumCircuit,
     QuantumRegister,
     ClassicalRegister,
 )
-from qiskit.circuit.quantumregister import Qubit
 from qiskit.converters import (
-    isinstanceint,
-    isinstancelist,
     dag_to_circuit,
     circuit_to_dag,
 )
@@ -25,26 +20,13 @@ from qiskit.dagcircuit import DAGCircuit
 from qiskit.providers import BaseBackend
 from qiskit.providers.backend import Backend
 from qiskit.providers.models import BackendProperties
-from qiskit.providers.models.backendproperties import Gate
-from qiskit.pulse import Schedule
-from qiskit.tools.parallel import parallel_map
 from qiskit.transpiler import Layout, CouplingMap, PropertySet, PassManager
 from qiskit.transpiler.basepasses import BasePass
-from qiskit.transpiler.exceptions import TranspilerError
-from qiskit.transpiler.instruction_durations import (
-    InstructionDurations,
-    InstructionDurationsType,
-)
-from qiskit.transpiler.passes import ApplyLayout
+from qiskit.transpiler.instruction_durations import InstructionDurationsType
 from qiskit.transpiler.passmanager_config import PassManagerConfig
-from qiskit.transpiler.preset_passmanagers import (
-    level_0_pass_manager,
-    level_1_pass_manager,
-    level_2_pass_manager,
-    level_3_pass_manager,
-)
-
 from qiskit.compiler import transpile
+
+# import palloq tools
 from palloq.transpiler.preset_passmanagers import multi_pass_manager
 
 
