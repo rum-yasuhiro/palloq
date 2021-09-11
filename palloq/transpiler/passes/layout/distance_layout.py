@@ -1,19 +1,19 @@
+# qiskit version 0.23.1
 # This program is based on https://github.com/Qiskit/qiskit-terra/blob/main/qiskit/transpiler/passes/layout/noise_adaptive_layout.py
-# Edited by Yasuhiro Ohkura
-# github: https://github.com/rum-yasuhiro/palloq
-#
+# Written by Yasuhiro Ohkura
 
+# import python tools
 import math
 from os import name
 from copy import copy
 from typing import OrderedDict
-
 import networkx as nx
+
+# import qiskit tools
 from qiskit.circuit.classicalregister import ClassicalRegister
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.circuit.quantumregister import QuantumRegister
 from qiskit.dagcircuit.dagcircuit import DAGCircuit
-
 from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
 from qiskit.transpiler.exceptions import LayoutError, TranspilerError
@@ -288,7 +288,7 @@ class DistanceMultiLayout(AnalysisPass):
         for _clbit_init, _clbit_combined in zip(init_dag.clbits, clbits):
             if _clbit_init in self.layout_dict:
                 self.layout_dict[_clbit_combined] = self.layout_dict.pop(_clbit_init)
-        
+
         if next_numq > 0:
             qubits = combined_dag.qubits[init_numq : init_numq + next_numq]
         if next_numc > 0:
@@ -305,7 +305,6 @@ class DistanceMultiLayout(AnalysisPass):
             if _clbit_next in self.layout_dict:
                 self.layout_dict[_clbit_combined] = self.layout_dict.pop(_clbit_next)
 
-
         return combined_dag
 
     def _largest_connected_hw_qubits(self):
@@ -314,13 +313,12 @@ class DistanceMultiLayout(AnalysisPass):
         for hw_qubit_set in nx.connected_components(self.swap_graph):
             if len(hw_qubit_set) >= self.largest_hw_qubits:
                 self.largest_hw_qubits = len(hw_qubit_set)
-        
 
     def _disable_qubits(self, hw_qubit, n=0):
         """disable qubits adjacent to used qubit in n hop range"""
 
         disable_list = []
-        
+
         if n >= 1:
             adj_1_list = [
                 adj_1
@@ -337,7 +335,7 @@ class DistanceMultiLayout(AnalysisPass):
                         if adj_2 in self.available_hw_qubits
                     ]
                 disable_list = disable_list + adj_2_list
-                if n >=3: 
+                if n >= 3:
                     adj_3_list = []
                     for _adj_2 in adj_2_list:
                         adj_3_list += [
@@ -349,7 +347,7 @@ class DistanceMultiLayout(AnalysisPass):
 
         disable_list = list(set(disable_list))
 
-        for adj in disable_list: 
+        for adj in disable_list:
             self.available_hw_qubits.remove(adj)
 
         self.swap_graph.remove_node(hw_qubit)
@@ -476,7 +474,7 @@ class DistanceMultiLayout(AnalysisPass):
         for qid in self.qarg_to_id.values():
 
             if qid not in self.prog2hw:
-                self.prog2hw[qid]  = self.available_hw_qubits[0]
+                self.prog2hw[qid] = self.available_hw_qubits[0]
                 self.available_hw_qubits.remove(self.prog2hw[qid])
 
         print("before layout: \n", self.layout_dict)
@@ -495,11 +493,15 @@ class DistanceMultiLayout(AnalysisPass):
         if init_dag:
             print("Before Num qubit: ", len(init_dag.qubits))
             next_dag = self._combine_dag(init_dag, next_dag)
-            print("After Num qubit: ", len(next_dag.qubits), len(self.layout_dict.keys()))
+            print(
+                "After Num qubit: ", len(next_dag.qubits), len(self.layout_dict.keys())
+            )
         else:
             print("Initialized!\n")
-            print("After Num qubit: ", len(next_dag.qubits), len(self.layout_dict.keys()))
-        
+            print(
+                "After Num qubit: ", len(next_dag.qubits), len(self.layout_dict.keys())
+            )
+
         print("\n################################################### \n")
         """FIXME
         入力量子回路の順番によって、なぜかlayoutにはない量子回路が追加されるバグが生じることがある
@@ -511,7 +513,7 @@ class DistanceMultiLayout(AnalysisPass):
             print("Initialized!\n")
         print("Num Prog qubits: ", len(self.layout_dict.keys()))
         """
-        
+
         self.property_set["layout"] = Layout(input_dict=self.layout_dict)
 
         self._largest_connected_hw_qubits()
