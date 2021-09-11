@@ -1,3 +1,5 @@
+# This code is written by Yasuhiro Ohkura
+
 from typing import List, Optional, Tuple, Dict
 import numpy as np
 import networkx as nx
