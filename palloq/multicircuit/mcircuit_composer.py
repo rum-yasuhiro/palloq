@@ -1,3 +1,5 @@
+# This code is written by Ryosuke Satoh
+
 import abc
 import numpy as np
 import copy
@@ -16,6 +18,7 @@ class MultiCircuitComposer(metaclass=abc.ABCMeta):
     """
     Metaclass for cirucit composers
     """
+
     @abc.abstractmethod
     def compose():
         """
@@ -25,7 +28,7 @@ class MultiCircuitComposer(metaclass=abc.ABCMeta):
 
 
 class MCC(MultiCircuitComposer):
-    '''
+    """
     MultiCircuitConverter combine multiple circuit to a list based on ESP.
 
     Arguments:
@@ -33,12 +36,15 @@ class MCC(MultiCircuitComposer):
         max_size: (int) The number of qubits in device
         threshold: (float) the threshold to cut the circuit pairs
         cost_function: (CostFunction) costfunction to evaluate circuit pairs
-    '''
-    def __init__(self,
-                 qcircuits: List[QuantumCircuit],
-                 device_size: int,
-                 threshold: float,
-                 cost_function: CostFunction = DepthBaseCost) -> None:
+    """
+
+    def __init__(
+        self,
+        qcircuits: List[QuantumCircuit],
+        device_size: int,
+        threshold: float,
+        cost_function: CostFunction = DepthBaseCost,
+    ) -> None:
 
         # The number of qubits in total
         if isinstance(device_size, int):
@@ -48,13 +54,17 @@ class MCC(MultiCircuitComposer):
 
         # Other data type is also availale
         if not isinstance(qcircuits, list):
-            raise TypeError(f"qcircuits must be a list of QuantumCircuit,\
-not {type(qcircuits)}")
+            raise TypeError(
+                f"qcircuits must be a list of QuantumCircuit,\
+not {type(qcircuits)}"
+            )
         if not all([isinstance(qc, QuantumCircuit) for qc in qcircuits]):
-            raise ValueError("All elements in qcircuits \
-must be Quantum Circuit")
+            raise ValueError(
+                "All elements in qcircuits \
+must be Quantum Circuit"
+            )
 
-        if any(map(lambda x:  x.num_qubits > device_size, qcircuits)):
+        if any(map(lambda x: x.num_qubits > device_size, qcircuits)):
             raise ValueError("One of circuit size is larger than device size.")
 
         self.qcircuits = qcircuits
@@ -64,8 +74,10 @@ must be Quantum Circuit")
         if issubclass(cost_function, CostFunction):
             self.cost_function = cost_function
         else:
-            raise ValueError("Argument cost_function must\
- be subclass of CostFunction")
+            raise ValueError(
+                "Argument cost_function must\
+ be subclass of CostFunction"
+            )
 
     def compose(self) -> bool:
         """
@@ -81,8 +93,7 @@ must be Quantum Circuit")
         _candidates = []
 
         # depth first search
-        def dfs(circuits: List,
-                index: int):
+        def dfs(circuits: List, index: int):
             # TODO clean up
             # depth first search
             # circuits: [(index, QuantumCircuit)]
@@ -90,8 +101,11 @@ must be Quantum Circuit")
             total_qubits = sum([i.num_qubits for i in _circuit_instances])
             _cost = self._cost_func.cost(_circuit_instances)
             # Three conditions to quit this dfs
-            if (total_qubits >= self._device_size or
-               _cost >= self._threshold or index >= len(self.qcircuits)):
+            if (
+                total_qubits >= self._device_size
+                or _cost >= self._threshold
+                or index >= len(self.qcircuits)
+            ):
                 _c = self._cost_func.cost(_circuit_instances[:-1])
                 _candidates.append((circuits[:-1], _c))
                 return
@@ -99,15 +113,15 @@ must be Quantum Circuit")
             _nqc = copy.copy(circuits)
             _nqc.append((index, self.qcircuits[index]))
             # add index+1 circuits
-            dfs(_nqc, index+1)
-            dfs(circuits, index+1)
+            dfs(_nqc, index + 1)
+            dfs(circuits, index + 1)
 
         dfs([(0, self.qcircuits[0])], 1)
 
-        # FIXME Post processing 
-        _sorted_candidates = sorted(_candidates,
-                                    key=lambda x: (len(x[0]), 1/(x[1]+1e-6)),
-                                    reverse=True)
+        # FIXME Post processing
+        _sorted_candidates = sorted(
+            _candidates, key=lambda x: (len(x[0]), 1 / (x[1] + 1e-6)), reverse=True
+        )
         _best_choice = None
         # TODO max len
         for _choice in _sorted_candidates:
@@ -133,7 +147,7 @@ must be Quantum Circuit")
             # get circuit index and instances
             _circuits = []
             for i, v in enumerate(_qcs):
-                self.qcircuits.pop(v[0]-i)
+                self.qcircuits.pop(v[0] - i)
                 _circuits.append(v[1])
             mulcirc = MultiCircuit()
             mulcirc.set_circuit_pairs(_circuits)
@@ -143,15 +157,14 @@ must be Quantum Circuit")
     def has_qc(self) -> bool:
         return len(self.qcircuits) > 0
 
-    def push(self,
-             qc: QuantumCircuit) -> None:
+    def push(self, qc: QuantumCircuit) -> None:
         if not isinstance(qc, QuantumCircuit):
             raise ValueError(f"qc must be Quantum Circuit not {type(qc)}")
         self.qcircuits.append(qc)
 
 
 class MCC_dp(MultiCircuitComposer):
-    '''
+    """
     MultiCircuitConverter combine multiple circuit to a list based on ESP.
 
     Arguments:
@@ -159,12 +172,15 @@ class MCC_dp(MultiCircuitComposer):
         max_size: (int) The number of qubits in device
         threshold: (float) the threshold to cut the circuit pairs
         cost_function: (CostFunction) costfunction to evaluate circuit pairs
-    '''
-    def __init__(self,
-                 qcircuits: List[QuantumCircuit],
-                 device_size: int,
-                 offset: int,
-                 eval_func=esp) -> None:
+    """
+
+    def __init__(
+        self,
+        qcircuits: List[QuantumCircuit],
+        device_size: int,
+        offset: int,
+        eval_func=esp,
+    ) -> None:
 
         # The number of qubits in total
         if isinstance(device_size, int):
@@ -174,13 +190,17 @@ class MCC_dp(MultiCircuitComposer):
 
         # Other data type is also availale
         if not isinstance(qcircuits, list):
-            raise TypeError(f"qcircuits must be a list of QuantumCircuit,\
-not {type(qcircuits)}")
+            raise TypeError(
+                f"qcircuits must be a list of QuantumCircuit,\
+not {type(qcircuits)}"
+            )
         if not all([isinstance(qc, QuantumCircuit) for qc in qcircuits]):
-            raise ValueError("All elements in qcircuits \
-must be Quantum Circuit")
+            raise ValueError(
+                "All elements in qcircuits \
+must be Quantum Circuit"
+            )
 
-        if any(map(lambda x:  x.num_qubits > device_size, qcircuits)):
+        if any(map(lambda x: x.num_qubits > device_size, qcircuits)):
             raise ValueError("One of circuit size is larger than device size.")
 
         self.qcircuits = qcircuits
@@ -197,7 +217,7 @@ must be Quantum Circuit")
         optimize circuit conbination based on just single circuit property.
 
         Optimization policy:
-            combine high esp circuits as many as possible 
+            combine high esp circuits as many as possible
         """
         # 0. size of total quantum circuits
         n = len(self.qcircuits)
@@ -208,17 +228,15 @@ must be Quantum Circuit")
         weights = [qc.num_qubits for qc in self.qcircuits]
         # using estimated successs probability as the value for single circuit
         # TODO take this as class argument
-        error_rates = {"u3": 0.0001,
-                       "cx": 0.001,
-                       "id": 0}
+        error_rates = {"u3": 0.0001, "cx": 0.001, "id": 0}
         # TODO find proper evaluation method for one
         # circuit in multiple circuit
         values = [self.eval_func(qc, error_rates) for qc in self.qcircuits]
         # values = [(abs(self._ave_depth - qc.depth())) for qc in self.qcircuits]
 
         # 2. prepare dp table and reverse table
-        dp = [[0] * (W) for _ in range(n+1)]
-        rev = [[0] * (W) for _ in range(n+1)]
+        dp = [[0] * (W) for _ in range(n + 1)]
+        rev = [[0] * (W) for _ in range(n + 1)]
 
         # 2.1 Initialize dp table
         for w in range(W):
@@ -229,21 +247,21 @@ must be Quantum Circuit")
             for w in range(W):
                 # pick up ith item
                 if w >= weights[i]:
-                    if dp[i+1][w] < dp[i][w-weights[i]] + values[i]:
-                        dp[i+1][w] = dp[i][w-weights[i]] + values[i]
-                        rev[i+1][w] = w - weights[i]
+                    if dp[i + 1][w] < dp[i][w - weights[i]] + values[i]:
+                        dp[i + 1][w] = dp[i][w - weights[i]] + values[i]
+                        rev[i + 1][w] = w - weights[i]
 
                 # do not pick up ith item
-                if dp[i+1][w] < dp[i][w]:
-                    dp[i+1][w] = dp[i][w]
-                    rev[i+1][w] = w
+                if dp[i + 1][w] < dp[i][w]:
+                    dp[i + 1][w] = dp[i][w]
+                    rev[i + 1][w] = w
         # 4. optimal
         _combination = []
         cur_w = W - 1
-        for i in range(n-1, -1, -1):
-            if rev[i+1][cur_w] == cur_w - weights[i]:
+        for i in range(n - 1, -1, -1):
+            if rev[i + 1][cur_w] == cur_w - weights[i]:
                 _combination.append(i)
-            cur_w = rev[i+1][cur_w]
+            cur_w = rev[i + 1][cur_w]
         # 5. calculate costs
         if _combination == []:
             mult = MultiCircuit()
@@ -257,21 +275,20 @@ must be Quantum Circuit")
                 if len(self.qcircuits) == 0:
                     break
                 # need correction for popout
-                self.qcircuits.pop(corr-i)
+                self.qcircuits.pop(corr - i)
             return mult
 
     def has_qc(self) -> bool:
         return len(self.qcircuits) > 0
 
-    def push(self,
-             qc: QuantumCircuit) -> None:
+    def push(self, qc: QuantumCircuit) -> None:
         if not isinstance(qc, QuantumCircuit):
             raise ValueError(f"qc must be Quantum Circuit not {type(qc)}")
         self.qcircuits.append(qc)
 
 
 class MCC_random(MultiCircuitComposer):
-    '''
+    """
     Random Circuit composer.
 
     Arguments:
@@ -279,12 +296,15 @@ class MCC_random(MultiCircuitComposer):
         max_size: (int) The number of qubits in device
         threshold: (float) the threshold to cut the circuit pairs
         cost_function: (CostFunction) costfunction to evaluate circuit pairs
-    '''
-    def __init__(self,
-                 qcircuits: List[QuantumCircuit],
-                 device_size: int,
-                 space: int,
-                 eval_func=esp) -> None:
+    """
+
+    def __init__(
+        self,
+        qcircuits: List[QuantumCircuit],
+        device_size: int,
+        space: int,
+        eval_func=esp,
+    ) -> None:
 
         # The number of qubits in total
         if isinstance(device_size, int):
@@ -294,20 +314,24 @@ class MCC_random(MultiCircuitComposer):
 
         # Other data type is also availale
         if not isinstance(qcircuits, list):
-            raise TypeError(f"qcircuits must be a list of QuantumCircuit,\
-not {type(qcircuits)}")
+            raise TypeError(
+                f"qcircuits must be a list of QuantumCircuit,\
+not {type(qcircuits)}"
+            )
         if not all([isinstance(qc, QuantumCircuit) for qc in qcircuits]):
-            raise ValueError("All elements in qcircuits \
-must be Quantum Circuit")
+            raise ValueError(
+                "All elements in qcircuits \
+must be Quantum Circuit"
+            )
 
-        if any(map(lambda x:  x.num_qubits > device_size, qcircuits)):
+        if any(map(lambda x: x.num_qubits > device_size, qcircuits)):
             raise ValueError("One of circuit size is larger than device size.")
 
         self.qcircuits = qcircuits
         self.optimized_circuits = []
         # function that evaluate circuit
         self.eval_func = eval_func
-        # space 
+        # space
         self._space = space
 
     def compose(self) -> None:
@@ -315,7 +339,7 @@ must be Quantum Circuit")
         optimize circuit conbination based on just single circuit property.
 
         Optimization policy:
-            combine high esp circuits as many as possible 
+            combine high esp circuits as many as possible
         """
         indices = []
         qcs = []
@@ -334,8 +358,7 @@ must be Quantum Circuit")
     def has_qc(self) -> bool:
         return len(self.qcircuits) > 0
 
-    def push(self,
-             qc: QuantumCircuit) -> None:
+    def push(self, qc: QuantumCircuit) -> None:
         if not isinstance(qc, QuantumCircuit):
             raise ValueError(f"qc must be Quantum Circuit not {type(qc)}")
         self.qcircuits.append(qc)
