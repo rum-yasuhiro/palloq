@@ -1,10 +1,9 @@
-from typing import List, Tuple, Union, Iterable
-from fractions import Fraction
-from scipy.optimize import fmin
+# This code is written by Ryosuke Satoh
+
+from typing import List, Iterable
 from qiskit import QuantumCircuit
 from qiskit.compiler import transpile
 import abc
-import math
 import numpy as np
 import collections
 
@@ -13,6 +12,7 @@ from palloq.utils import esp
 
 class CostFunction(metaclass=abc.ABCMeta):
     "a series of cost functions"
+
     def __init__(self):
         pass
 
@@ -23,25 +23,27 @@ class CostFunction(metaclass=abc.ABCMeta):
         """
         pass
 
-class CrosstalkBaseCost(CostFunction):
 
-    def __init__(self,
-                 total_qubits: int,
-                 device_errors: List[float] = None,
-                 device_topology: List = None):
+class CrosstalkBaseCost(CostFunction):
+    def __init__(
+        self,
+        total_qubits: int,
+        device_errors: List[float] = None,
+        device_topology: List = None,
+    ):
         if not isinstance(total_qubits, int):
             raise TypeError("total_qubits must be int")
         self.total_qubits = total_qubits
         self.device_errors = device_errors
         self.device_topology = device_topology
-        
+
     def _calculate_cost(self) -> float:
         cost = []
 
         for qc in self.circuit_pairs:
             each_cost = qc.num_qubits / self.total_qubits
             cost.append(each_cost)
-        
+
         """
         cost = 0
 
@@ -52,24 +54,29 @@ class CrosstalkBaseCost(CostFunction):
 
     def cost(self, circuit_pairs):
         if isinstance(circuit_pairs, (Iterable)):
-            if all(map(lambda x: isinstance(x, QuantumCircuit),
-                       circuit_pairs)):
+            if all(map(lambda x: isinstance(x, QuantumCircuit), circuit_pairs)):
                 self.circuit_pairs = circuit_pairs
             else:
-                raise ValueError("Argument circuit_pairs must \
-be the iterable of Quantum Circuit")
+                raise ValueError(
+                    "Argument circuit_pairs must \
+be the iterable of Quantum Circuit"
+                )
         else:
-            raise TypeError("Argument circuit_pairs must be the iterable \
-of Quantum Circuit not {type(circuit_pairs)}")
+            raise TypeError(
+                "Argument circuit_pairs must be the iterable \
+of Quantum Circuit not {type(circuit_pairs)}"
+            )
         cost = self._calculate_cost()
         return cost
 
-class DurationTimeCost(CostFunction):
 
-    def __init__(self,
-                 total_qubits: int,
-                 device_errors: List[float] = None,
-                 device_topology: List = None):
+class DurationTimeCost(CostFunction):
+    def __init__(
+        self,
+        total_qubits: int,
+        device_errors: List[float] = None,
+        device_topology: List = None,
+    ):
         if not isinstance(total_qubits, int):
             raise TypeError("total_qubits must be int")
         self.total_qubits = total_qubits
@@ -93,13 +100,13 @@ class DurationTimeCost(CostFunction):
         id_list = []
 
         for qc in self.circuit_pairs:
-            uqc = transpile(qc, basis_gates = ['rz', 'cx', 'sx', 'x', 'id'])
+            uqc = transpile(qc, basis_gates=["rz", "cx", "sx", "x", "id"])
             qc_ops = uqc.count_ops()
-            cx_num = qc_ops.get('cx', 0)
-            rz_num = qc_ops.get('rz', 0)
-            sx_num = qc_ops.get('sx', 0)
-            x_num = qc_ops.get('x', 0)
-            id_num = qc_ops.get('id', 0)
+            cx_num = qc_ops.get("cx", 0)
+            rz_num = qc_ops.get("rz", 0)
+            sx_num = qc_ops.get("sx", 0)
+            x_num = qc_ops.get("x", 0)
+            id_num = qc_ops.get("id", 0)
 
             cx_list.append(cx_num)
             rz_list.append(rz_num)
@@ -112,8 +119,14 @@ class DurationTimeCost(CostFunction):
             total_sx = sum(sx_list)
             total_x = sum(x_list)
             total_id = sum(id_list)
-            
-            each_cost = total_cx * cx_duration_time + total_rz * rz_duration_time + total_sx * sx_duration_time + total_x * x_duration_time + total_id * id_duration_time
+
+            each_cost = (
+                total_cx * cx_duration_time
+                + total_rz * rz_duration_time
+                + total_sx * sx_duration_time
+                + total_x * x_duration_time
+                + total_id * id_duration_time
+            )
             cost.append(each_cost)
 
             cx_list = []
@@ -121,7 +134,7 @@ class DurationTimeCost(CostFunction):
             sx_list = []
             x_list = []
             id_list = []
-        
+
         return cost
 
         """
@@ -139,40 +152,47 @@ class DurationTimeCost(CostFunction):
 
     def cost(self, circuit_pairs):
         if isinstance(circuit_pairs, (Iterable)):
-            if all(map(lambda x: isinstance(x, QuantumCircuit),
-                       circuit_pairs)):
+            if all(map(lambda x: isinstance(x, QuantumCircuit), circuit_pairs)):
                 self.circuit_pairs = circuit_pairs
             else:
-                raise ValueError("Argument circuit_pairs must \
-be the iterable of Quantum Circuit")
+                raise ValueError(
+                    "Argument circuit_pairs must \
+be the iterable of Quantum Circuit"
+                )
         else:
-            raise TypeError("Argument circuit_pairs must be the iterable \
-of Quantum Circuit not {type(circuit_pairs)}")
+            raise TypeError(
+                "Argument circuit_pairs must be the iterable \
+of Quantum Circuit not {type(circuit_pairs)}"
+            )
         cost = self._calculate_cost()
         return cost
 
+
 class DepthBaseCost(CostFunction):
     """
-    This Cost function returns a cost taking
-    several quantum circuits as inputs.
+        This Cost function returns a cost taking
+        several quantum circuits as inputs.
 
-QuantumCircuit.depth:depth
-QuantumCircuit.size():Returns total number of gate operations in circuit.
-QuantumCircuit.count_ops():Count each operation kind in the circuit.
-QuantumCircuit.num_qubits:Return number of qubits.
+    QuantumCircuit.depth:depth
+    QuantumCircuit.size():Returns total number of gate operations in circuit.
+    QuantumCircuit.count_ops():Count each operation kind in the circuit.
+    QuantumCircuit.num_qubits:Return number of qubits.
 
-    Arguments:
-        circuit_pairs: (list) List of Quantum Circuit to calculate cost
-        device_errors: (?) Device error information
-        device_topology: (np.ndarray, list or Other) Qubit
-        topology of target device
-        
-    FIXME If you don't need  some of parameters, please remove it.
+        Arguments:
+            circuit_pairs: (list) List of Quantum Circuit to calculate cost
+            device_errors: (?) Device error information
+            device_topology: (np.ndarray, list or Other) Qubit
+            topology of target device
+
+        FIXME If you don't need  some of parameters, please remove it.
     """
-    def __init__(self,
-                 total_qubits: int,
-                 device_errors: List[float] = None,
-                 device_topology: List = None):
+
+    def __init__(
+        self,
+        total_qubits: int,
+        device_errors: List[float] = None,
+        device_topology: List = None,
+    ):
         if not isinstance(total_qubits, int):
             raise TypeError("total_qubits must be int")
         self.total_qubits = total_qubits
@@ -221,15 +241,18 @@ QuantumCircuit.num_qubits:Return number of qubits.
 
     def cost(self, circuit_pairs):
         if isinstance(circuit_pairs, (Iterable)):
-            if all(map(lambda x: isinstance(x, QuantumCircuit),
-                       circuit_pairs)):
+            if all(map(lambda x: isinstance(x, QuantumCircuit), circuit_pairs)):
                 self.circuit_pairs = circuit_pairs
             else:
-                raise ValueError("Argument circuit_pairs must \
-be the iterable of Quantum Circuit")
+                raise ValueError(
+                    "Argument circuit_pairs must \
+be the iterable of Quantum Circuit"
+                )
         else:
-            raise TypeError("Argument circuit_pairs must be the iterable \
-of Quantum Circuit not {type(circuit_pairs)}")
+            raise TypeError(
+                "Argument circuit_pairs must be the iterable \
+of Quantum Circuit not {type(circuit_pairs)}"
+            )
         cost = self._calculate_cost()
         return cost
 
@@ -248,12 +271,12 @@ if __name__ == "__main__":
     """
 
     qc = QuantumCircuit(3)
-    qc.cx(0,1)
+    qc.cx(0, 1)
     qc.h(1)
     qc.barrier()
     qc.measure_all()
     qc2 = QuantumCircuit(5)
-    qc.cx(0,1)
+    qc.cx(0, 1)
     qc.h(1)
     circuit_pairs.append(qc)
     circuit_pairs.append(qc2)
@@ -264,4 +287,4 @@ if __name__ == "__main__":
     cost = costfunction.cost(circuit_pairs)
     cost2 = costfunction2.cost(circuit_pairs)
     cost3 = costfunction3.cost(circuit_pairs)
-    print(cost,cost2,cost3)
+    print(cost, cost2, cost3)

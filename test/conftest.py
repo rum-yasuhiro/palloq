@@ -47,10 +47,6 @@ def collect(path):
     circuits = [str(i) for qc in path.iterdir() for i in qc.glob("[a-z]*.qasm")]
     return circuits
 
-# def change_register_name(qc):
-#     """TODO"""
-#     qregs = qc.qregs()
-#     for _qreg 
 
 @pytest.fixture(scope="session")
 def small_circuits() -> list:

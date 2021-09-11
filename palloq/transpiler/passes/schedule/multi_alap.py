@@ -1,7 +1,12 @@
-"""ALAP Scheduling."""
+# qiskit version 0.23.1
+# This code is based on https://qiskit.org/documentation/stubs/qiskit.transpiler.passes.ALAPSchedule.html?highlight=alap#qiskit.transpiler.passes.ALAPSchedule
+# Written by Yasuhiro Ohkura
+
+# import python tools
 from collections import defaultdict
 from typing import List
 
+# import qiskit tools
 from qiskit.circuit.delay import Delay
 from qiskit.dagcircuit import DAGCircuit
 from qiskit.transpiler.basepasses import TransformationPass
@@ -33,7 +38,7 @@ class MultiALAPSchedule(TransformationPass):
         #     raise TranspilerError('ALAP schedule runs on physical circuits only')
 
         if not time_unit:
-            time_unit = self.property_set['time_unit']
+            time_unit = self.property_set["time_unit"]
 
         new_dag = DAGCircuit()
         for qreg in dag.qregs.values():
@@ -54,8 +59,9 @@ class MultiALAPSchedule(TransformationPass):
             start_time = max(qubit_time_available[q] for q in node.qargs)
             pad_with_delays(node.qargs, until=start_time, unit=time_unit)
 
-            new_node = new_dag.apply_operation_front(node.op, node.qargs, node.cargs,
-                                                     node.condition)
+            new_node = new_dag.apply_operation_front(
+                node.op, node.qargs, node.cargs, node.condition
+            )
             duration = self.durations.get(node.op, node.qargs, unit=time_unit)
             # set duration for each instruction (tricky but necessary)
             new_node.op.duration = duration

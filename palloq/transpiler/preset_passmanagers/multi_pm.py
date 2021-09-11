@@ -1,6 +1,7 @@
-# 2020/12/3
+# 2020 / 12 / 03
 # qiskit version: 0.23.1
-# 
+# This code is based on https://qiskit.org/documentation/stubs/qiskit.transpiler.preset_passmanagers.level_3_pass_manager.html?highlight=pass_manager#qiskit.transpiler.preset_passmanagers.level_3_pass_manager
+# Written by Yasuhiro Ohkura
 
 from qiskit.transpiler.passmanager_config import PassManagerConfig
 from qiskit.transpiler.passmanager import PassManager
@@ -38,6 +39,7 @@ from qiskit.transpiler.passes import UnitarySynthesis
 from qiskit.transpiler.passes import ApplyLayout
 from qiskit.transpiler.passes import CheckCXDirection
 from qiskit.transpiler.passes import TimeUnitAnalysis
+
 # from qiskit.transpiler.passes import ALAPSchedule
 # from qiskit.transpiler.passes import ASAPSchedule
 
@@ -50,13 +52,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def multi_pass_manager(pass_manager_config: PassManagerConfig, crosstalk_prop=None) -> PassManager:
+def multi_pass_manager(
+    pass_manager_config: PassManagerConfig, crosstalk_prop=None
+) -> PassManager:
     basis_gates = pass_manager_config.basis_gates
     coupling_map = pass_manager_config.coupling_map
     initial_layout = pass_manager_config.initial_layout
-    layout_method = pass_manager_config.layout_method or 'dense'
-    routing_method = pass_manager_config.routing_method or 'stochastic'
-    translation_method = pass_manager_config.translation_method or 'translator'
+    layout_method = pass_manager_config.layout_method or "dense"
+    routing_method = pass_manager_config.routing_method or "stochastic"
+    translation_method = pass_manager_config.translation_method or "translator"
     scheduling_method = pass_manager_config.scheduling_method
     instruction_durations = pass_manager_config.instruction_durations
     seed_transpiler = pass_manager_config.seed_transpiler
@@ -69,19 +73,23 @@ def multi_pass_manager(pass_manager_config: PassManagerConfig, crosstalk_prop=No
     _given_layout = SetLayout(initial_layout)
 
     def _choose_layout_condition(property_set):
-        return not property_set['layout']
+        return not property_set["layout"]
 
     _choose_layout_1 = CSPLayout(coupling_map, call_limit=10000, time_limit=60)
-    if layout_method == 'trivial':
+    if layout_method == "trivial":
         _choose_layout_2 = TrivialLayout(coupling_map)
-    elif layout_method == 'dense':
+    elif layout_method == "dense":
         _choose_layout_2 = DenseLayout(coupling_map, backend_properties)
-    elif layout_method == 'noise_adaptive':
+    elif layout_method == "noise_adaptive":
         _choose_layout_2 = NoiseAdaptiveLayout(backend_properties)
-    elif layout_method == 'sabre':
-        _choose_layout_2 = SabreLayout(coupling_map, max_iterations=4, seed=seed_transpiler)
-    elif layout_method == 'xtalk_adaptive':
-        _choose_layout_2 = CrosstalkAdaptiveMultiLayout(backend_properties, crosstalk_prop=crosstalk_prop)
+    elif layout_method == "sabre":
+        _choose_layout_2 = SabreLayout(
+            coupling_map, max_iterations=4, seed=seed_transpiler
+        )
+    elif layout_method == "xtalk_adaptive":
+        _choose_layout_2 = CrosstalkAdaptiveMultiLayout(
+            backend_properties, crosstalk_prop=crosstalk_prop
+        )
     # elif layout_method == 'xtalk_sabre':
     #     _choose_layout_2 = CrosstalkSabreLayout(coupling_map, max_iterations=4, seed=seed_transpiler, crosstalk_prop=crosstalk_prop)
     else:
@@ -94,28 +102,31 @@ def multi_pass_manager(pass_manager_config: PassManagerConfig, crosstalk_prop=No
     _swap_check = CheckMap(coupling_map)
 
     def _swap_condition(property_set):
-        return not property_set['is_swap_mapped']
+        return not property_set["is_swap_mapped"]
 
     _swap = [BarrierBeforeFinalMeasurements()]
-    if routing_method == 'basic':
+    if routing_method == "basic":
         _swap += [BasicSwap(coupling_map)]
-    elif routing_method == 'stochastic':
+    elif routing_method == "stochastic":
         _swap += [StochasticSwap(coupling_map, trials=200, seed=seed_transpiler)]
-    elif routing_method == 'lookahead':
+    elif routing_method == "lookahead":
         _swap += [LookaheadSwap(coupling_map, search_depth=5, search_width=6)]
-    elif routing_method == 'sabre':
-        _swap += [SabreSwap(coupling_map, heuristic='decay', seed=seed_transpiler)]
+    elif routing_method == "sabre":
+        _swap += [SabreSwap(coupling_map, heuristic="decay", seed=seed_transpiler)]
     else:
         raise TranspilerError("Invalid routing method %s." % routing_method)
 
     # 5. Unroll to the basis
-    if translation_method == 'unroller':
+    if translation_method == "unroller":
         _unroll = [Unroller(basis_gates)]
-    elif translation_method == 'translator':
+    elif translation_method == "translator":
         from qiskit.circuit.equivalence_library import SessionEquivalenceLibrary as sel
-        _unroll = [UnrollCustomDefinitions(sel, basis_gates),
-                   BasisTranslator(sel, basis_gates)]
-    elif translation_method == 'synthesis':
+
+        _unroll = [
+            UnrollCustomDefinitions(sel, basis_gates),
+            BasisTranslator(sel, basis_gates),
+        ]
+    elif translation_method == "synthesis":
         _unroll = [
             Unroll3qOrMore(),
             Collect2qBlocks(),
@@ -129,23 +140,24 @@ def multi_pass_manager(pass_manager_config: PassManagerConfig, crosstalk_prop=No
     _direction_check = [CheckCXDirection(coupling_map)]
 
     def _direction_condition(property_set):
-        return not property_set['is_direction_mapped']
+        return not property_set["is_direction_mapped"]
 
     _direction = [CXDirection(coupling_map)]
 
     # 8. Optimize iteratively until no more change in depth. Removes useless gates
     # after reset and before measure, commutes gates and optimizes continguous blocks.
-    _depth_check = [Depth(), FixedPoint('depth')]
+    _depth_check = [Depth(), FixedPoint("depth")]
 
     def _opt_control(property_set):
-        return not property_set['depth_fixed_point']
+        return not property_set["depth_fixed_point"]
 
     _reset = [RemoveResetInZeroState()]
 
     _meas = [OptimizeSwapBeforeMeasure(), RemoveDiagonalGatesBeforeMeasure()]
 
-    if basis_gates and ('u1' in basis_gates or 'u2' in basis_gates or
-                        'u3' in basis_gates):
+    if basis_gates and (
+        "u1" in basis_gates or "u2" in basis_gates or "u3" in basis_gates
+    ):
         _opt = [
             Collect2qBlocks(),
             ConsolidateBlocks(basis_gates=basis_gates),
@@ -165,12 +177,14 @@ def multi_pass_manager(pass_manager_config: PassManagerConfig, crosstalk_prop=No
     # Schedule the circuit only when scheduling_method is supplied
     if scheduling_method:
         _scheduling = [TimeUnitAnalysis(instruction_durations)]
-        if scheduling_method in {'alap', 'as_late_as_possible'}:
+        if scheduling_method in {"alap", "as_late_as_possible"}:
             _scheduling += [MultiALAPSchedule(instruction_durations)]
-        elif scheduling_method in {'asap', 'as_soon_as_possible'}:
+        elif scheduling_method in {"asap", "as_soon_as_possible"}:
             # _scheduling += [ASAPSchedule(instruction_durations)]
             """FIXME"""
-            raise TranspilerError("Sorry now this method is not available: %s." % scheduling_method)
+            raise TranspilerError(
+                "Sorry now this method is not available: %s." % scheduling_method
+            )
         else:
             raise TranspilerError("Invalid scheduling method %s." % scheduling_method)
 

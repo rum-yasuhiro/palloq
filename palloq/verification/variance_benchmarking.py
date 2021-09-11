@@ -1,11 +1,11 @@
-from typing import Tuple, List, Dict, Union
+# This code is written by Yasuhiro Ohkura
 
+# import python tools
+from typing import Tuple, List, Dict, Union
 from pandas.core.frame import DataFrame
 from tqdm import tqdm
 import pandas as pd
 import seaborn as sns
-
-from pprint import pprint
 
 # import qiskit tools
 import qiskit.ignis.verification.randomized_benchmarking as rb
@@ -226,7 +226,7 @@ def calculate_rbfit(
                 rbfit = rb.fitters.RBFitter(None, xdata, rb_pattern)
                 fitobjs.append((rbfit, gpcs))
             for nseed, jobid in enumerate(jobids):  # by default nseed = 1
-                try: 
+                try:
                     result = backend.retrieve_job(jobid).result()
                 except:
                     print("Job %s is faild" % jobid)
@@ -317,7 +317,7 @@ def gen_rb_pattern(
         pattern_set = [[[i]] for i in range(num_qubits)]
     else:
         coupling_map = backend.configuration().coupling_map
-        pattern_set = [[coup] for coup in coupling_map if coup[0]<coup[1]]
+        pattern_set = [[coup] for coup in coupling_map if coup[0] < coup[1]]
 
     return pattern_set
 
@@ -336,7 +336,9 @@ def gen_simrb_pattern(
         num_qubits = backend.configuration().num_qubits
         pattern_set = [[[i] for i in range(num_qubits)]]
     else:
-        raise NotImplementedError("simRB pattern for more than 2 qubits is not implemented yet.")
+        raise NotImplementedError(
+            "simRB pattern for more than 2 qubits is not implemented yet."
+        )
 
     return pattern_set
 

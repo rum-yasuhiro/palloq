@@ -1,10 +1,15 @@
+# qiskit version 0.29.0
+# This code is based on https://qiskit.org/documentation/stubs/qiskit.transpiler.passes.NoiseAdaptiveLayout.html?highlight=noise%20adaptive#qiskit.transpiler.passes.NoiseAdaptiveLayout
+# Written by Yasuhiro Ohkura
+
+# import python tools
 import math
 import networkx as nx
+
+# import qiskit tools
 from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
 from qiskit.transpiler.exceptions import TranspilerError
-from qiskit import QuantumRegister, ClassicalRegister
-from qiskit.dagcircuit import DAGCircuit
 
 
 class CrosstalkAdaptiveMultiLayout(AnalysisPass):
