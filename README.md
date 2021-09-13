@@ -11,4 +11,4 @@
 ## How to use
 
 詳しくはノートブックを参照ください。（工事中）
-See the notebook for details. (Under construction)
+> See the notebook for details. (Under construction)
