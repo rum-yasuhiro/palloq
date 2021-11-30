@@ -130,7 +130,7 @@ class TestBufferedLayout(unittest.TestCase):
         qr1 = QuantumRegister(3, "q1")
         cr1 = ClassicalRegister(3)
         qc1 = QuantumCircuit(qr1, cr1)
-        # weight 2 on (0, 1) and wegit 1 on (1, 2)
+        # weight 2 on (0, 1) and weight 1 on (1, 2)
         qc1.cx(qr1[0], qr1[1])
         qc1.cx(qr1[1], qr1[0])
         qc1.cx(qr1[1], qr1[2])
@@ -141,31 +141,31 @@ class TestBufferedLayout(unittest.TestCase):
         qr2 = QuantumRegister(3, "q2")
         cr2 = ClassicalRegister(3)
         qc2 = QuantumCircuit(qr2, cr2)
-        # weight 1 on (0, 1) and wegit 2 on (1, 2)
+        # weight 1 on (0, 1) and weight 2 on (1, 2)
         qc2.cx(qr2[0], qr2[1])
         qc2.cx(qr2[1], qr2[2])
         qc2.cx(qr2[2], qr2[1])
         qc2.measure(qr2, cr2)
         dag2 = circuit_to_dag(qc2)
 
-        # initialize and run dmlayout
-        dmlayout = BufferedMultiLayout(
+        # initialize and run bm_layout
+        bm_layout = BufferedMultiLayout(
             backend_prop=bprop,
         )
-        init_dag = dmlayout.run(next_dag=dag1)
-        mapped_dag = dmlayout.run(next_dag=dag2, init_dag=init_dag)
-        initial_layout = dmlayout.property_set["layout"]
+        init_dag = bm_layout.run(next_dag=dag1)
+        mapped_dag = bm_layout.run(next_dag=dag2, init_dag=init_dag)
+        initial_layout = bm_layout.property_set["layout"]
         self.assertEqual(initial_layout[0], qr1[2])
         self.assertEqual(initial_layout[5], qr2[0])
 
-        # initialize and run dmlayout
-        dmlayout = BufferedMultiLayout(
+        # initialize and run bm_layout
+        bm_layout = BufferedMultiLayout(
             backend_prop=bprop,
             n_hop=1,
         )
-        init_dag = dmlayout.run(next_dag=dag1)
-        mapped_dag = dmlayout.run(next_dag=dag2, init_dag=init_dag)
-        initial_layout = dmlayout.property_set["layout"]
+        init_dag = bm_layout.run(next_dag=dag1)
+        mapped_dag = bm_layout.run(next_dag=dag2, init_dag=init_dag)
+        initial_layout = bm_layout.property_set["layout"]
         self.assertEqual(initial_layout[0], qr1[2])
         self.assertEqual(init_dag, mapped_dag)
 
@@ -202,7 +202,7 @@ class TestBufferedLayout(unittest.TestCase):
         qr1 = QuantumRegister(3, "q1")
         cr1 = ClassicalRegister(3)
         qc1 = QuantumCircuit(qr1, cr1)
-        # weight 2 on (0, 1) and wegit 1 on (1, 2)
+        # weight 2 on (0, 1) and weight 1 on (1, 2)
         qc1.cx(qr1[0], qr1[1])
         qc1.cx(qr1[1], qr1[0])
         qc1.cx(qr1[1], qr1[2])
@@ -213,20 +213,20 @@ class TestBufferedLayout(unittest.TestCase):
         qr2 = QuantumRegister(3, "q2")
         cr2 = ClassicalRegister(3)
         qc2 = QuantumCircuit(qr2, cr2)
-        # weight 1 on (0, 1) and wegit 2 on (1, 2)
+        # weight 1 on (0, 1) and weight 2 on (1, 2)
         qc2.cx(qr2[0], qr2[1])
         qc2.cx(qr2[1], qr2[2])
         qc2.cx(qr2[2], qr2[1])
         qc2.measure(qr2, cr2)
         dag2 = circuit_to_dag(qc2)
 
-        # initialize dmlayout
-        dmlayout = BufferedMultiLayout(
+        # initialize bm_layout
+        bm_layout = BufferedMultiLayout(
             backend_prop=bprop,
         )
 
-        init_dag = dmlayout.run(next_dag=dag1)
-        mapped_dag = dmlayout.run(next_dag=dag2, init_dag=init_dag)
+        init_dag = bm_layout.run(next_dag=dag1)
+        mapped_dag = bm_layout.run(next_dag=dag2, init_dag=init_dag)
 
         self.assertEqual(init_dag, mapped_dag)
 
