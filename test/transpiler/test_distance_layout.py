@@ -29,7 +29,7 @@ def make_qubit_with_error(readout_error):
 
 
 class TestBufferedLayout(unittest.TestCase):
-    def test_run_sigledag(self):
+    def test_run_singledag(self):
 
         # prepare test dag
         qr = QuantumRegister(3)
