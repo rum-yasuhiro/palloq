@@ -7,7 +7,7 @@ import logging
 
 from typing import Union, List
 from qiskit import QuantumCircuit
-from palloq.multicircuit.OptimizationFunction import CostFunction, DepthBaseCost
+from palloq.circuitcombination.OptimizationFunction import CostFunction, DepthBaseCost
 from palloq.utils.esp import esp
 
 
