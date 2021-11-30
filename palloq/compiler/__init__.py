@@ -1,2 +1,1 @@
 from .dynamic_multiqc_compose import dynamic_multiqc_compose
-from .multi_transpile import multi_transpile
