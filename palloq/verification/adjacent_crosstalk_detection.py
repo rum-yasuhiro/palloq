@@ -6,7 +6,7 @@ import networkx as nx
 from qiskit.compiler import transpile
 import qiskit.ignis.verification.randomized_benchmarking as rb
 from qiskit.providers.ibmq.job.exceptions import IBMQJobFailureError
-from palloq.utils import get_IBMQ_backend, pickle_load, pickle_dump
+from palloq.utils import pickle_load, pickle_dump
 
 from qiskit.providers.ibmq import IBMQBackend
 
