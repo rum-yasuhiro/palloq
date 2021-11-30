@@ -1,2 +1,2 @@
 from .crosstalk_adaptive_layout import CrosstalkAdaptiveMultiLayout
-from .distance_layout import DistanceMultiLayout
+from .buffered_layout import BufferedMultiLayout

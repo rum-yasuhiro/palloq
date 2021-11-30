@@ -27,7 +27,7 @@ from qiskit.providers.models import BackendProperties
 from qiskit.compiler import transpile
 
 # import palloq tools
-from palloq.transpiler.passes.layout.distance_layout import DistanceMultiLayout
+from palloq.transpiler.passes.layout.buffered_layout import BufferedMultiLayout
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -129,7 +129,7 @@ def _sequential_layout(
 ) -> Tuple[QuantumCircuit, List[QuantumCircuit]]:
 
     init_dag = None
-    dmlayout = DistanceMultiLayout(
+    dmlayout = BufferedMultiLayout(
         backend_properties,
         n_hop=num_hw_dist,
     )

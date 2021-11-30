@@ -10,7 +10,7 @@ from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.compiler import transpile
 from qiskit.providers.models import BackendProperties
 from qiskit.providers.models.backendproperties import Nduv, Gate
-from palloq.transpiler.passes.layout.distance_layout import DistanceMultiLayout
+from palloq.transpiler.passes.layout.buffered_layout import BufferedMultiLayout
 from qiskit.converters import circuit_to_dag
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, circuit
 from qiskit.test.mock import FakeManhattan
@@ -28,7 +28,7 @@ def make_qubit_with_error(readout_error):
     ]
 
 
-class TestDistanceLayout(unittest.TestCase):
+class TestBufferedLayout(unittest.TestCase):
     def test_run_sigledag(self):
 
         # prepare test dag
@@ -43,7 +43,7 @@ class TestDistanceLayout(unittest.TestCase):
         backend = FakeManhattan()
         bprop = backend.properties()
 
-        dml = DistanceMultiLayout(
+        dml = BufferedMultiLayout(
             backend_prop=bprop,
         )
 
@@ -83,7 +83,7 @@ class TestDistanceLayout(unittest.TestCase):
         dag2 = circuit_to_dag(qc2)
 
         # initialize dml
-        dml = DistanceMultiLayout(
+        dml = BufferedMultiLayout(
             backend_prop=bprop,
         )
 
@@ -149,7 +149,7 @@ class TestDistanceLayout(unittest.TestCase):
         dag2 = circuit_to_dag(qc2)
 
         # initialize and run dmlayout
-        dmlayout = DistanceMultiLayout(
+        dmlayout = BufferedMultiLayout(
             backend_prop=bprop,
         )
         init_dag = dmlayout.run(next_dag=dag1)
@@ -159,7 +159,7 @@ class TestDistanceLayout(unittest.TestCase):
         self.assertEqual(initial_layout[5], qr2[0])
 
         # initialize and run dmlayout
-        dmlayout = DistanceMultiLayout(
+        dmlayout = BufferedMultiLayout(
             backend_prop=bprop,
             n_hop=1,
         )
@@ -221,7 +221,7 @@ class TestDistanceLayout(unittest.TestCase):
         dag2 = circuit_to_dag(qc2)
 
         # initialize dmlayout
-        dmlayout = DistanceMultiLayout(
+        dmlayout = BufferedMultiLayout(
             backend_prop=bprop,
         )
 

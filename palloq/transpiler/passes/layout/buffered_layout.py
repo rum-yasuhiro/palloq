@@ -20,7 +20,7 @@ from qiskit.transpiler.exceptions import LayoutError, TranspilerError
 from qiskit.providers.models import BackendProperties
 
 
-class DistanceMultiLayout(AnalysisPass):
+class BufferedMultiLayout(AnalysisPass):
     def __init__(
         self,
         backend_prop: BackendProperties,
