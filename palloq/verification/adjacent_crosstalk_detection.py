@@ -8,27 +8,32 @@ import qiskit.ignis.verification.randomized_benchmarking as rb
 from qiskit.providers.ibmq.job.exceptions import IBMQJobFailureError
 from palloq.utils import get_IBMQ_backend, pickle_load, pickle_dump
 
+from qiskit.providers.ibmq import IBMQBackend
 
-def run_rb(
-    backend_name,
-    shots,
-    length_vector=[1, 10, 20, 50, 75, 100, 125, 150, 175, 200],/
-    nseeds=5,
-    qubit_size: int = 2,
+
+def run_2q_detection(
+    backend: IBMQBackend,
+    shots: int,
+    length_vector: list = [1, 10, 20, 50, 75, 100, 125, 150, 175, 200],
+    nseeds: int = 5,
     jobfile_path=None,
-    test_on_simulator=False,
-    reservations=False,
 ):
+    """[summary]
 
-    backend = get_IBMQ_backend(
-        backend_name=backend_name,
-        reservations=reservations,
-    )
+    Args:
+        backend (IBMQBackend): IBMQ backend you want to run the randomized benchmarking on.
+        shots (int): Number of shots (trials).
+        length_vector (list, optional): The list of length (m) of random clifford gates. Defaults to [1, 10, 20, 50, 75, 100, 125, 150, 175, 200].
+        nseeds (int, optional): Repetition of RB procedure. Defaults to 5.
+        jobfile_path (str, optional): [description]. If you want to save the pickle file includes job as a dict, path/to/file. Defaults to None.
+
+    Returns:
+        dict: [description]
+    """
+
     coupling_map = backend.configuration().coupling_map
     basis_gates = backend.configuration().basis_gates
 
-    if test_on_simulator:
-        backend = get_IBMQ_backend(backend_name="ibmq_qasm_simulator")
     adj_couples = find_adjacent_couples(coupling_map=coupling_map)
     job_dict = _run_rb(
         backend=backend,
@@ -67,7 +72,7 @@ def _run_rb(
         shots             : number of shots (by default 1024)
 
     Return:
-        Error per gate
+        Dict[job_id, EPG(Error per gate)]
 
     """
 
@@ -77,7 +82,7 @@ def _run_rb(
     #################### rum each pairs of 2q gate ######################
     print("#################### Start make jobs ######################\n")
     for twoQconnection, pair_list in twoQgate_pairs.items():
-        # start sigle rb
+        # start single rb
         print("############ start " + str(twoQconnection) + " ############")
         try:
             job_dict[twoQconnection] = job_dict[twoQconnection]
@@ -159,8 +164,8 @@ def calculate_result(
             rb_pattern    : combination of qubits
         basis_gates       : basis_gates list
         shots             : number of shots (by default 1024)
-        save_path_epc     : epc values saved here as picke file
-        save_path_epg     : epc values saved here as picke file
+        save_path_epc     : epc values saved here as pickle file
+        save_path_epg     : epc values saved here as pickle file
 
     Return:
         Error / Clifford
@@ -263,7 +268,7 @@ def find_adjacent_couples(coupling_map: List[List[int]]) -> dict:
                 # add itself
                 adj_dict[targ].append(targ)
 
-                # search lesser node adjacented
+                # search lesser node adjacent
                 for adj_i in nx.all_neighbors(g, node_i):
                     if adj_i != node_j:
                         for adj_j in nx.all_neighbors(g, adj_i):
@@ -280,7 +285,7 @@ def find_adjacent_couples(coupling_map: List[List[int]]) -> dict:
                                 )
                                 adj_dict[targ].append(adj_coup)
 
-                # search greater node adjacented
+                # search greater node adjacent
                 for adj_k in nx.all_neighbors(g, node_j):
                     if adj_k != node_i:
                         for adj_l in nx.all_neighbors(g, adj_k):
