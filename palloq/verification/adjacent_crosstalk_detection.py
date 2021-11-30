@@ -146,7 +146,7 @@ def _run_rb(
 
 def calculate_result(
     jobfile_path,
-    backend_name,
+    backend: IBMQBackend,
     reservations=False,
     rb_opts={
         "length_vector": [1, 10, 20, 50, 75, 100, 125, 150, 175, 200],
@@ -157,7 +157,7 @@ def calculate_result(
 ) -> List[Dict[str, float]]:
     """
     Args:
-        backend_name      : IBM Q backend name
+        backend_name      : IBM Q backend
         rb_opts           : options for randomized banchmarking protocol as dict
             length_vector : list of clifford length of each run
             nseeds        : random seeds
@@ -174,12 +174,6 @@ def calculate_result(
     """
     # Open job information from pickle file
     simrb_dict = pickle_load(jobfile_path)
-
-    # get IBM Q backend
-    backend = get_IBMQ_backend(
-        backend_name=backend_name,
-        reservations=reservations,
-    )
 
     # define the dict
     epc_dict = {}  # Error / Clifford
