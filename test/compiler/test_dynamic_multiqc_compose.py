@@ -1,16 +1,7 @@
-import pytest
-from datetime import datetime
+# test for dynamic_multiqc_compose()
 
 from qiskit.circuit.quantumcircuit import QuantumCircuit
-from qiskit.converters.dag_to_circuit import dag_to_circuit
-from qiskit.compiler import transpile
-from qiskit.providers.models import BackendProperties
-from qiskit.providers.models.backendproperties import Nduv, Gate
-from palloq.transpiler.passes.layout.buffered_layout import BufferedMultiLayout
-from qiskit.converters import circuit_to_dag
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, circuit
-from qiskit.test.mock import FakeManhattan
-from qiskit.transpiler.layout import Layout
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit.test.mock import FakeMelbourne, FakeParis
 
 from palloq.compiler.dynamic_multiqc_compose import dynamic_multiqc_compose
@@ -18,7 +9,7 @@ from palloq.compiler.dynamic_multiqc_compose import dynamic_multiqc_compose
 """This test is written as pytest style"""
 
 
-def test_small_queue_grid(mock_backend_chain_topology):
+def test_small_queue_grid():
     # prepare mock backend
     backend = FakeMelbourne()
     coupling_map = FakeMelbourne().configuration().coupling_map
@@ -31,7 +22,7 @@ def test_small_queue_grid(mock_backend_chain_topology):
     qr1 = QuantumRegister(3, "q1")
     cr1 = ClassicalRegister(3)
     qc1 = QuantumCircuit(qr1, cr1)
-    # weight 2 on (0, 1) and wegit 1 on (1, 2)
+    # weight 2 on (0, 1) and weight 1 on (1, 2)
     qc1.cx(qr1[0], qr1[1])
     qc1.cx(qr1[1], qr1[0])
     qc1.cx(qr1[1], qr1[2])
@@ -42,7 +33,7 @@ def test_small_queue_grid(mock_backend_chain_topology):
     qr2 = QuantumRegister(3, "q2")
     cr2 = ClassicalRegister(3)
     qc2 = QuantumCircuit(qr2, cr2)
-    # weight 1 on (0, 1) and wegit 2 on (1, 2)
+    # weight 1 on (0, 1) and weight 2 on (1, 2)
     qc2.cx(qr2[0], qr2[1])
     qc2.cx(qr2[1], qr2[2])
     qc2.cx(qr2[2], qr2[1])
@@ -75,7 +66,7 @@ def test_small_queue_falconr4():
     qr1 = QuantumRegister(3, "q1")
     cr1 = ClassicalRegister(3)
     qc1 = QuantumCircuit(qr1, cr1)
-    # weight 2 on (0, 1) and wegit 1 on (1, 2)
+    # weight 2 on (0, 1) and weight 1 on (1, 2)
     qc1.cx(qr1[0], qr1[1])
     qc1.cx(qr1[1], qr1[0])
     qc1.cx(qr1[1], qr1[2])
@@ -86,7 +77,7 @@ def test_small_queue_falconr4():
     qr2 = QuantumRegister(3, "q2")
     cr2 = ClassicalRegister(3)
     qc2 = QuantumCircuit(qr2, cr2)
-    # weight 1 on (0, 1) and wegit 2 on (1, 2)
+    # weight 1 on (0, 1) and weight 2 on (1, 2)
     qc2.cx(qr2[0], qr2[1])
     qc2.cx(qr2[1], qr2[2])
     qc2.cx(qr2[2], qr2[0])
@@ -110,7 +101,7 @@ def test_small_queue_falconr4():
         print(_qc)
 
 
-def test_nisqbench_s_falconr4(small_circuits):
+def test_qasmbench_s_falconr4(small_circuits):
     # prepare mock backend
     backend = FakeParis()
     coupling_map = FakeParis().configuration().coupling_map
