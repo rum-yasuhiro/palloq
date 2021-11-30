@@ -360,7 +360,6 @@ class BufferedMultiLayout(AnalysisPass):
 
         # initialize dag as program graphs
         num_qubits = self._create_program_graphs(dag=next_dag)
-        # print("self.largest_hw_qubits", self.largest_hw_qubits)
 
         # check the hardware availability
         if num_qubits > self.largest_hw_qubits:
@@ -474,7 +473,6 @@ class BufferedMultiLayout(AnalysisPass):
                 self.prog2hw[qid] = self.available_hw_qubits[0]
                 self.available_hw_qubits.remove(self.prog2hw[qid])
 
-        print("before layout: \n", self.layout_dict)
         for q in next_dag.qubits:
             pid = self._qarg_to_id(q)
             hwid = self.prog2hw[pid]
@@ -485,21 +483,10 @@ class BufferedMultiLayout(AnalysisPass):
 
             # disable n hop qubits
             self._disable_qubits(hwid, n=self.n_hop)
-        print("after layout: \n", self.layout_dict)
 
         if init_dag:
-            print("Before Num qubit: ", len(init_dag.qubits))
             next_dag = self._combine_dag(init_dag, next_dag)
-            print(
-                "After Num qubit: ", len(next_dag.qubits), len(self.layout_dict.keys())
-            )
-        else:
-            print("Initialized!\n")
-            print(
-                "After Num qubit: ", len(next_dag.qubits), len(self.layout_dict.keys())
-            )
 
-        print("\n################################################### \n")
         """FIXME
         入力量子回路の順番によって、なぜかlayoutにはない量子回路が追加されるバグが生じることがある
         バグが生じる際、

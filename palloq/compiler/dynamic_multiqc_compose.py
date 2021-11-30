@@ -84,7 +84,6 @@ def dynamic_multiqc_compose(
 
     # repeat until all queued qcs are assigned
     composed_circuits = []
-    name_list_list = []
     while len(queued_qc) > 0:
         comp_qc, layout, name_list, queued_qc = _sequential_layout(
             queued_qc,
@@ -93,14 +92,11 @@ def dynamic_multiqc_compose(
             num_hw_dist,
         )
         composed_circuits.append((comp_qc, layout))
-        name_list_list.append(name_list)
 
     # apply qiskit pass managers except for layout pass
     transpiled_circuit = []
     num_usage = []
     for comp_qc, layout in composed_circuits:
-        print("Num Qubits in QC: ", comp_qc.num_qubits)
-        print("Layout: ", layout)
         num_usage.append(comp_qc.num_qubits)
         _transpied = transpile(
             circuits=comp_qc,
@@ -115,7 +111,7 @@ def dynamic_multiqc_compose(
         transpiled_circuit.append(_transpied)
 
     if return_num_usage:
-        return transpiled_circuit, num_usage, name_list_list
+        return transpiled_circuit, num_usage
     return transpiled_circuit
 
 
