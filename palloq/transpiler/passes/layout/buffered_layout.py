@@ -4,19 +4,16 @@
 
 # import python tools
 import math
-from os import name
-from copy import copy
 from typing import OrderedDict
 import networkx as nx
 
 # import qiskit tools
 from qiskit.circuit.classicalregister import ClassicalRegister
-from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.circuit.quantumregister import QuantumRegister
 from qiskit.dagcircuit.dagcircuit import DAGCircuit
 from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
-from qiskit.transpiler.exceptions import LayoutError, TranspilerError
+from qiskit.transpiler.exceptions import TranspilerError
 from qiskit.providers.models import BackendProperties
 
 
@@ -31,8 +28,8 @@ class BufferedMultiLayout(AnalysisPass):
         super().__init__()
         self.backend_prop = backend_prop
 
-        self.hw_still_avaible = True
-        self.floaded_dag = None
+        self.hw_still_available = True
+        self.overflowed_dag = None
         self.largest_hw_qubits = len(backend_prop.qubits)
 
         self.n_hop = n_hop
@@ -132,7 +129,7 @@ class BufferedMultiLayout(AnalysisPass):
             self.qarg_to_id[q.register.name + str(q.index)] = idx + self.used_hwq
             idx += 1
 
-        # every time next_graph is assgined, prog_graph is initialized
+        # every time next_graph is assigned, prog_graph is initialized
         self.prog_graph = nx.Graph()
         for gate in dag.two_qubit_ops():
             qid1 = self._qarg_to_id(gate.qargs[0])
@@ -355,8 +352,8 @@ class BufferedMultiLayout(AnalysisPass):
     def run(self, next_dag: DAGCircuit, init_dag=None):
         """Run the DistanceMultiLayout pass on `list of dag`."""
 
-        # Compare next dag.qubits to left num qubits status and check the status by using self.hw_still_avaible.
-        # If so, hw_still_avaible=False and return init_dag
+        # Compare next dag.qubits to left num qubits status and check the status by using self.hw_still_available.
+        # If so, hw_still_available=False and return init_dag
         # find next_dag's hw_qubits
         # Combine init_dag and next_dag
         # Return init_dag
@@ -367,8 +364,8 @@ class BufferedMultiLayout(AnalysisPass):
 
         # check the hardware availability
         if num_qubits > self.largest_hw_qubits:
-            self.hw_still_avaible = False
-            self.floaded_dag = next_dag
+            self.hw_still_available = False
+            self.overflowed_dag = next_dag
             return init_dag
 
         # sort program sub-graphs by weight
@@ -389,8 +386,8 @@ class BufferedMultiLayout(AnalysisPass):
                 if best_hw_edge is None:
                     # hw has no capacity to add next_dag
                     if init_dag is not None:
-                        self.hw_still_avaible = False
-                        self.floaded_dag = next_dag
+                        self.hw_still_available = False
+                        self.overflowed_dag = next_dag
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed "
@@ -407,12 +404,12 @@ class BufferedMultiLayout(AnalysisPass):
                 )
 
                 heavier_prog_qubit = self._adjacent_heavier_node(edge, self.prog_graph)
-                ligher_prog_qubit = (
+                lighter_prog_qubit = (
                     edge[1] if edge[0] == heavier_prog_qubit else edge[0]
                 )
 
                 self.prog2hw[heavier_prog_qubit] = better_adj_hw_qubit
-                self.prog2hw[ligher_prog_qubit] = less_reliab_adj_hw_qubit
+                self.prog2hw[lighter_prog_qubit] = less_reliab_adj_hw_qubit
                 self.available_hw_qubits.remove(better_adj_hw_qubit)
                 self.available_hw_qubits.remove(less_reliab_adj_hw_qubit)
 
@@ -425,8 +422,8 @@ class BufferedMultiLayout(AnalysisPass):
                 if best_hw_qubit is None:
                     # hw has no capacity to add next_dag
                     if init_dag is not None:
-                        self.hw_still_avaible = False
-                        self.floaded_dag = next_dag
+                        self.hw_still_available = False
+                        self.overflowed_dag = next_dag
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed in selected device. "
@@ -448,8 +445,8 @@ class BufferedMultiLayout(AnalysisPass):
                 if best_hw_qubit is None:
                     # hw has no capacity to add next_dag
                     if init_dag is not None:
-                        self.hw_still_avaible = False
-                        self.floaded_dag = next_dag
+                        self.hw_still_available = False
+                        self.overflowed_dag = next_dag
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed in selected device. "

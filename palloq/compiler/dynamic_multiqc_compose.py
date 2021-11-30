@@ -5,9 +5,7 @@
 
 # import python tools
 import logging
-from time import time
-from typing import List, Union, Dict, Callable, Any, Optional, Tuple
-from networkx.algorithms.components.connected import connected_components
+from typing import List, Union, Optional, Tuple
 
 # import qiskit tools
 from qiskit.circuit.quantumcircuit import (
@@ -129,7 +127,7 @@ def _sequential_layout(
 ) -> Tuple[QuantumCircuit, List[QuantumCircuit]]:
 
     init_dag = None
-    dmlayout = BufferedMultiLayout(
+    bm_layout = BufferedMultiLayout(
         backend_properties,
         n_hop=num_hw_dist,
     )
@@ -138,7 +136,7 @@ def _sequential_layout(
     qc_names = []
 
     while queued_circuits:
-        if not dmlayout.hw_still_avaible:
+        if not bm_layout.hw_still_available:
             break
 
         qc, num_cx = _select_next_qc(queued_circuits)
@@ -148,23 +146,23 @@ def _sequential_layout(
             break
 
         dag = circuit_to_dag(qc)
-        allocated_dag = dmlayout.run(next_dag=dag, init_dag=init_dag)
+        allocated_dag = bm_layout.run(next_dag=dag, init_dag=init_dag)
 
         # update number of CX pointer
         num_cx_before = num_cx
 
         # save qc name
-        if dmlayout.hw_still_avaible:
+        if bm_layout.hw_still_available:
             qc_names.append(qc.name)
 
         init_dag = allocated_dag
 
-    if dmlayout.floaded_dag:
-        floaded_qc = dag_to_circuit(dmlayout.floaded_dag)
-        queued_circuits.append(floaded_qc)
+    if bm_layout.overflowed_dag:
+        overflowed_qc = dag_to_circuit(bm_layout.overflowed_dag)
+        queued_circuits.append(overflowed_qc)
 
     composed_circuit = dag_to_circuit(allocated_dag)
-    layout = dmlayout.property_set["layout"]
+    layout = bm_layout.property_set["layout"]
 
     return composed_circuit, layout, qc_names, queued_circuits
 
@@ -221,7 +219,7 @@ def _backend_properties(backend_properties, backend):
 
 def _create_faulty_qubits_map(backend):
     """If the backend has faulty qubits, those should be excluded. A faulty_qubit_map is a map
-    from working qubit in the backend to dumnmy qubits that are consecutive and connected."""
+    from working qubit in the backend to dummy qubits that are consecutive and connected."""
 
     faulty_qubits_map = None
     if backend is not None:
