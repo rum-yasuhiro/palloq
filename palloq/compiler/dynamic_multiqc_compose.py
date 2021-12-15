@@ -39,11 +39,11 @@ def dynamic_multiqc_compose(
     coupling_map=None,
     routing_method=None,
     scheduling_method=None,
-    num_hw_dist=0,
+    num_buffer=0,
     num_idle_qubits=0,
     output_name: Optional[Union[str, List[str]]] = None,
     return_num_usage=False,
-) -> List[Tuple[QuantumCircuit, dict]]:
+) -> List[QuantumCircuit]:
     """Mapping several circuits to single circuit based on calibration for the backend
 
     Args:
@@ -89,7 +89,7 @@ def dynamic_multiqc_compose(
             queued_qc,
             len(backend_properties.qubits),
             backend_properties,
-            num_hw_dist,
+            num_buffer,
         )
         composed_circuits.append((comp_qc, layout))
 
@@ -111,7 +111,12 @@ def dynamic_multiqc_compose(
         transpiled_circuit.append(_transpied)
 
     if return_num_usage:
+        if len(transpiled_circuit) == 1:
+            return transpiled_circuit[0], num_usage[0]
         return transpiled_circuit, num_usage
+
+    if len(transpiled_circuit) == 1:
+        return transpiled_circuit[0]
     return transpiled_circuit
 
 
@@ -119,13 +124,13 @@ def _sequential_layout(
     queued_circuits,
     num_hw_qubits,
     backend_properties,
-    num_hw_dist,
+    num_buffer,
 ) -> Tuple[QuantumCircuit, List[QuantumCircuit]]:
 
     init_dag = None
     bm_layout = BufferedMultiLayout(
         backend_properties,
-        n_hop=num_hw_dist,
+        n_hop=num_buffer,
     )
 
     num_cx_before = 0
