@@ -1,5 +1,5 @@
 """
-Benchmark environement for multi circuit composer and compiler
+Benchmark environnement for multi circuit composer and compiler
 """
 import logging
 import numpy as np
@@ -13,7 +13,12 @@ from qiskit import QuantumCircuit, IBMQ, execute, Aer
 from concurrent.futures import ProcessPoolExecutor
 
 # internal
-from palloq.multicircuit.mcircuit_composer import MultiCircuitComposer, MCC, MCC_dp, MCC_random
+from palloq.circuitcombination.mcircuit_composer import (
+    MultiCircuitComposer,
+    MCC,
+    MCC_dp,
+    MCC_random,
+)
 from palloq.compiler.multi_transpile import multi_transpile
 from palloq.utils.esp import esp
 
@@ -28,17 +33,15 @@ class MCCBench:
     MCCBench benchmarks multi circuit composer.
 
     This class has series of support tools for benchmarks
-    Arugments:
+    Arguments:
         circuits: (list) list or array of QuantumCircuit in qiskit.
         backend: TODO extend fake device
         track: (bool) if track the all execution or not
     """
 
-    def __init__(self,
-                 circuits: List[QuantumCircuit],
-                 backend,
-                 shots,
-                 track: bool = False):
+    def __init__(
+        self, circuits: List[QuantumCircuit], backend, shots, track: bool = False
+    ):
         # list of circuits
         if not all(map(lambda x: isinstance(x, QuantumCircuit), circuits)):
             raise Exception("Input circuit must be instance of QuantumCircuit")
@@ -67,19 +70,20 @@ class MCCBench:
 
     def set_composer(self, composer, offset=0, eval_func=esp):
         """
-        Set a multi-circuit composer to fold up several different circiuts.
+        Set a multi-circuit composer to fold up several different circuits.
 
         Arguments:
-            composer: (MultiCircuitComposer) 
+            composer: (MultiCircuitComposer)
                       This composer must have compose function.
         """
         if not issubclass(composer, MultiCircuitComposer):
-            raise Exception("composer must be a subclass\
-of multicircuit composer")
-        self._composer = composer(self.qcircuits,
-                                  self._device_size,
-                                  offset=offset,
-                                  eval_func=esp)
+            raise Exception(
+                "composer must be a subclass\
+of multicircuit composer"
+            )
+        self._composer = composer(
+            self.qcircuits, self._device_size, offset=offset, eval_func=esp
+        )
 
     def set_compiler(self, compiler, *prop):
         """
@@ -92,7 +96,7 @@ of multicircuit composer")
         setting metric to evaluate the final probability distribution
 
         Argument:
-            metric_func: (function(a, b))Function to evaluate 
+            metric_func: (function(a, b))Function to evaluate
                          two different probability distribution
         """
         self._metric = metric_func
@@ -145,15 +149,15 @@ of multicircuit composer")
             qc = self._compiler(multi_circuit.circuits(), xtalk_prop={})
             return qc
         elif self._composer is None and self._compiler is None:
-            # 2. just sequencial
+            # 2. just sequential
             return [self.qcircuits.pop()]
         else:
-            raise Exception("Both of composer and compiler is None or\
-neither of them are None is fine.")
+            raise Exception(
+                "Both of composer and compiler is None or\
+neither of them are None is fine."
+            )
 
-
-    def evaluate(self,
-                 track: bool = False):
+    def evaluate(self, track: bool = False):
         """
         Evaluate entire performance of composer.
 
@@ -166,7 +170,7 @@ neither of them are None is fine.")
         # previous size
         _size = len(self.qcircuits)
 
-        # 1. loop for circuiuts
+        # 1. loop for circuits
         _c = 0  # loop counter
         while len(self.qcircuits) > 0:
             # 2.1 run compose and compile
@@ -183,12 +187,14 @@ neither of them are None is fine.")
             self.results[_c]["sim_count"] = sim_count
             self.results[_c]["circuit"] = qc
             _c += 1
-            # loop interupter
+            # loop interrupter
             if _size == len(self.qcircuits):
                 break
         if len(self.qcircuits) > 0:
-            raise Exception(f"Something went wrong.\
-{len(self.qcircuits)} circuits remain. ")
+            raise Exception(
+                f"Something went wrong.\
+{len(self.qcircuits)} circuits remain. "
+            )
         print("count", _c)
 
     def _parse_count(self, count):
@@ -205,15 +211,14 @@ neither of them are None is fine.")
         for ib, b in enumerate(first_count):
             # make empty dict to store the measurement results
             _csize = len(b)
-            _result[ib] = {format(t, "0%db" % (_csize)): 0
-                           for t in range(2**_csize)}
+            _result[ib] = {format(t, "0%db" % (_csize)): 0 for t in range(2 ** _csize)}
         # update count values
         for ct, val in count.items():
             _split_count = ct.split(" ")
             for ic, b in enumerate(_split_count):
                 _result[ic][b] += val
         return _result
-    
+
     def _calc_pst(self, emp_count, sim_count):
         # success trial
         pst = 0
@@ -222,20 +227,19 @@ neither of them are None is fine.")
             _success_rate = 0
             if count != 0:
                 emp_c = emp_count.get(label, 0)
-                _s = emp_c/count
+                _s = emp_c / count
                 _success_rate = _s if _s <= 1 else 0
             pst += _success_rate
         return pst
 
-    
     def _calc_jsd(self, emp_count, sim_count):
         _size_r = len(next(iter(emp_count)))
         _size_s = len(next(iter(sim_count)))
         if _size_s != _size_r:
             raise Exception("The size of bit must be the same between two results")
-        bits = [format(i, '0%db'%_size_r) for i in range(2**_size_r)]
-        prob_r = np.array([emp_count.get(b, 0)/self.shots for b in bits])
-        prob_s = np.array([sim_count.get(b, 0)/self.shots for b in bits])
+        bits = [format(i, "0%db" % _size_r) for i in range(2 ** _size_r)]
+        prob_r = np.array([emp_count.get(b, 0) / self.shots for b in bits])
+        prob_s = np.array([sim_count.get(b, 0) / self.shots for b in bits])
         return jsd(prob_r, prob_s)
 
     def summary(self):
@@ -263,22 +267,24 @@ neither of them are None is fine.")
 
 def qcircuits(num):
     # 0. prepare circuits (no "inverseqft_n4","shor_n5")
-    qasm_bench = ["adder_n4",
-                  "basis_change_n3",
-                  "cat_state_n4",
-                  "deutsch_n2",
-                  "error_correctiond3_n5",
-                  "fredkin_n3",
-                  "grover_n2",
-                  "hs4_n4",
-                  "iswap_n2",
-                  "linearsolver_n3",
-                  "lpn_n5",
-                  "qec_en_n5",
-                  "toffoli_n3",
-                  "variational_n4",
-                  "wstate_n3"]
-    # kakeru 2
+    qasm_bench = [
+        "adder_n4",
+        "basis_change_n3",
+        "cat_state_n4",
+        "deutsch_n2",
+        "error_correctiond3_n5",
+        "fredkin_n3",
+        "grover_n2",
+        "hs4_n4",
+        "iswap_n2",
+        "linearsolver_n3",
+        "lpn_n5",
+        "qec_en_n5",
+        "toffoli_n3",
+        "variational_n4",
+        "wstate_n3",
+    ]
+
     qcircuit = PrepareQASMBench(qasm_bench, "qasmbench.pickle").qc_list()
     _qcs = []
     for _ in range(num):
@@ -291,16 +297,16 @@ def dp_bench(offset):
     ave = []
     IBMQ.load_account()
     # prepare benchmark environments
-    provider = IBMQ.get_provider(hub='ibm-q-utokyo',
-                                 group='keio-internal',
-                                 project='keio-students')
+    provider = IBMQ.get_provider(
+        hub="ibm-q-utokyo", group="keio-internal", project="keio-students"
+    )
     backend = provider.get_backend("ibmq_sydney")
     # backend = FakeToronto()
     for _ in range(5):
         qcs = qcircuits(2)
         bench = MCCBench(circuits=qcs, backend=backend, shots=8192)
         # set composer and compiler
-        
+
         # print("offset", offset)
         bench.set_composer(MCC_dp, offset)
         bench.set_compiler(multi_transpile)
@@ -317,15 +323,15 @@ def dp_bench(offset):
 def dp_bench_single(offset):
     IBMQ.load_account()
     # prepare benchmark environments
-    provider = IBMQ.get_provider(hub='ibm-q-utokyo',
-                                 group='keio-internal',
-                                 project='keio-students')
+    provider = IBMQ.get_provider(
+        hub="ibm-q-utokyo", group="keio-internal", project="keio-students"
+    )
     backend = provider.get_backend("ibmq_sydney")
     # backend = FakeToronto()
     qcs = qcircuits(2)
     bench = MCCBench(circuits=qcs, backend=backend, shots=8192)
     # set composer and compiler
-    
+
     # print("offset", offset)
     bench.set_composer(MCC_dp, offset=offset)
     bench.set_compiler(multi_transpile)
@@ -340,16 +346,16 @@ def dp_bench_single(offset):
 def rd_bench_single(offset):
     IBMQ.load_account()
     # prepare benchmark environments
-    provider = IBMQ.get_provider(hub='ibm-q-utokyo',
-                                 group='keio-internal',
-                                 project='keio-students')
+    provider = IBMQ.get_provider(
+        hub="ibm-q-utokyo", group="keio-internal", project="keio-students"
+    )
     backend = provider.get_backend("ibmq_sydney")
     # backend = FakeToronto()
     _qcs = qcircuits(2)
     qcs = random.sample(_qcs, len(_qcs))
     bench = MCCBench(circuits=qcs, backend=backend, shots=8192)
     # set composer and compiler
-    
+
     # print("offset", offset)
     bench.set_composer(MCC_random, offset=offset)
     bench.set_compiler(multi_transpile)
@@ -365,16 +371,16 @@ def rand_bench(offset):
     ave = []
     IBMQ.load_account()
     # prepare benchmark environments
-    provider = IBMQ.get_provider(hub='ibm-q-utokyo',
-                                 group='keio-internal',
-                                 project='keio-students')
+    provider = IBMQ.get_provider(
+        hub="ibm-q-utokyo", group="keio-internal", project="keio-students"
+    )
     backend = provider.get_backend("ibmq_sydney")
     # backend = FakeToronto()
     for _ in range(5):
         qcs = qcircuits(2)
         bench = MCCBench(circuits=qcs, backend=backend, shots=8192)
         # set composer and compiler
-        
+
         # print("offset", offset)
         bench.set_composer(MCC_random, offset=offset)
         bench.set_compiler(multi_transpile)
@@ -388,38 +394,13 @@ def rand_bench(offset):
     return np.mean(ave), np.std(ave), offset
 
 
-def dazai_bench():
-    IBMQ.load_account()
-    # prepare benchmark environments
-    provider = IBMQ.get_provider(hub='ibm-q-utokyo',
-                                 group='keio-internal',
-                                 project='keio-students')
-    backend = provider.get_backend("ibmq_sydney")
-    # backend = FakeToronto()
-    qcs = qcircuits(2)
-    bench = MCCBench(circuits=qcs, backend=backend, shots=8192)
-    # set composer and compiler
-    
-    # dazai function
-    # cost_func = 
-    # print("offset", offset)
-    bench.set_composer(MCC_dp, offset=0, cost_func=cost_func)
-    bench.set_compiler(multi_transpile)
-
-    # evaluate with circuit datasets
-    # with tracking all info level log
-    bench.evaluate(track=False)
-    _jsd = bench.summary()
-    return _jsd
-
-
 if __name__ == "__main__":
     # preparer circuits
     # prepare two same circuits for each
     ave = []
     # start process
     max_workers = None
-    # 
+    #
     # dp_qualities = {}
     # with ProcessPoolExecutor(max_workers=max_workers) as executor:
     #     for quality, std, offset in executor.map(dp_bench, offsets):
@@ -429,7 +410,7 @@ if __name__ == "__main__":
     # #     quality, std = dp_bench(of)
     # #     dp_qualities[of] = [quality, std]
     # print("dp", dp_qualities)
-    
+
     space = int(sys.argv[1])
     print("space", space)
     for _ in range(10):
@@ -446,14 +427,14 @@ if __name__ == "__main__":
     # for of in offsets:
     #     quality, std = rand_bench(of)
     #     rand_qualities[of] = [quality, std]
-    
+
     # print("random", rand_qualities)
 
     # MCC_dp
     # data
-    # random 
+    # random
     # [0.531828905104023, 0.4015653639266842, 0.5002611681912982, 0.5769783672760296, 0.43200043949544337]
-    
+
     # mcc_dp
     # [0.42855881015065445, 0.33203026010954634, 0.5153705028449385, 0.7083726421240693]
     # [0.337240682194642, 0.3362892689513287, 0.2501621169814029, 0.35773913544107594, 0.4458317494754765, 0.5355503073535636, 0.5467164954868409, 0.711480176484298]

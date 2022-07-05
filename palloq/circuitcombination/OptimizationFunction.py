@@ -1,8 +1,6 @@
 # This code is written by Ryosuke Satoh, Takuma Nagaoka
 
-from typing import List, Tuple, Union, Iterable
-from fractions import Fraction
-from scipy.optimize import fmin
+from typing import List, Iterable
 from qiskit import QuantumCircuit
 from qiskit.compiler import transpile
 import abc

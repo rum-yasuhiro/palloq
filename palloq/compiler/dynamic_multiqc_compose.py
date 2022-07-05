@@ -5,9 +5,7 @@
 
 # import python tools
 import logging
-from time import time
-from typing import List, Union, Dict, Callable, Any, Optional, Tuple
-from networkx.algorithms.components.connected import connected_components
+from typing import List, Union, Optional, Tuple
 
 # import qiskit tools
 from qiskit.circuit.quantumcircuit import (
@@ -27,7 +25,7 @@ from qiskit.providers.models import BackendProperties
 from qiskit.compiler import transpile
 
 # import palloq tools
-from palloq.transpiler.passes.layout.distance_layout import DistanceMultiLayout
+from palloq.transpiler.passes.layout.buffered_layout import BufferedMultiLayout
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -41,11 +39,11 @@ def dynamic_multiqc_compose(
     coupling_map=None,
     routing_method=None,
     scheduling_method=None,
-    num_hw_dist=0,
+    num_buffer=0,
     num_idle_qubits=0,
     output_name: Optional[Union[str, List[str]]] = None,
     return_num_usage=False,
-) -> List[Tuple[QuantumCircuit, dict]]:
+) -> List[QuantumCircuit]:
     """Mapping several circuits to single circuit based on calibration for the backend
 
     Args:
@@ -86,23 +84,19 @@ def dynamic_multiqc_compose(
 
     # repeat until all queued qcs are assigned
     composed_circuits = []
-    name_list_list = []
     while len(queued_qc) > 0:
         comp_qc, layout, name_list, queued_qc = _sequential_layout(
             queued_qc,
             len(backend_properties.qubits),
             backend_properties,
-            num_hw_dist,
+            num_buffer,
         )
         composed_circuits.append((comp_qc, layout))
-        name_list_list.append(name_list)
 
     # apply qiskit pass managers except for layout pass
     transpiled_circuit = []
     num_usage = []
     for comp_qc, layout in composed_circuits:
-        print("Num Qubits in QC: ", comp_qc.num_qubits)
-        print("Layout: ", layout)
         num_usage.append(comp_qc.num_qubits)
         _transpied = transpile(
             circuits=comp_qc,
@@ -117,7 +111,12 @@ def dynamic_multiqc_compose(
         transpiled_circuit.append(_transpied)
 
     if return_num_usage:
-        return transpiled_circuit, num_usage, name_list_list
+        if len(transpiled_circuit) == 1:
+            return transpiled_circuit[0], num_usage[0]
+        return transpiled_circuit, num_usage
+
+    if len(transpiled_circuit) == 1:
+        return transpiled_circuit[0]
     return transpiled_circuit
 
 
@@ -125,20 +124,20 @@ def _sequential_layout(
     queued_circuits,
     num_hw_qubits,
     backend_properties,
-    num_hw_dist,
+    num_buffer,
 ) -> Tuple[QuantumCircuit, List[QuantumCircuit]]:
 
     init_dag = None
-    dmlayout = DistanceMultiLayout(
+    bm_layout = BufferedMultiLayout(
         backend_properties,
-        n_hop=num_hw_dist,
+        n_hop=num_buffer,
     )
 
     num_cx_before = 0
     qc_names = []
 
     while queued_circuits:
-        if not dmlayout.hw_still_avaible:
+        if not bm_layout.hw_still_available:
             break
 
         qc, num_cx = _select_next_qc(queued_circuits)
@@ -148,23 +147,23 @@ def _sequential_layout(
             break
 
         dag = circuit_to_dag(qc)
-        allocated_dag = dmlayout.run(next_dag=dag, init_dag=init_dag)
+        allocated_dag = bm_layout.run(next_dag=dag, init_dag=init_dag)
 
         # update number of CX pointer
         num_cx_before = num_cx
 
         # save qc name
-        if dmlayout.hw_still_avaible:
+        if bm_layout.hw_still_available:
             qc_names.append(qc.name)
 
         init_dag = allocated_dag
 
-    if dmlayout.floaded_dag:
-        floaded_qc = dag_to_circuit(dmlayout.floaded_dag)
-        queued_circuits.append(floaded_qc)
+    if bm_layout.overflowed_dag:
+        overflowed_qc = dag_to_circuit(bm_layout.overflowed_dag)
+        queued_circuits.append(overflowed_qc)
 
     composed_circuit = dag_to_circuit(allocated_dag)
-    layout = dmlayout.property_set["layout"]
+    layout = bm_layout.property_set["layout"]
 
     return composed_circuit, layout, qc_names, queued_circuits
 
@@ -221,7 +220,7 @@ def _backend_properties(backend_properties, backend):
 
 def _create_faulty_qubits_map(backend):
     """If the backend has faulty qubits, those should be excluded. A faulty_qubit_map is a map
-    from working qubit in the backend to dumnmy qubits that are consecutive and connected."""
+    from working qubit in the backend to dummy qubits that are consecutive and connected."""
 
     faulty_qubits_map = None
     if backend is not None:

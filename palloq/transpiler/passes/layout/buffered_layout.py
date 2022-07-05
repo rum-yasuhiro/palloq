@@ -4,23 +4,20 @@
 
 # import python tools
 import math
-from os import name
-from copy import copy
 from typing import OrderedDict
 import networkx as nx
 
 # import qiskit tools
 from qiskit.circuit.classicalregister import ClassicalRegister
-from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.circuit.quantumregister import QuantumRegister
 from qiskit.dagcircuit.dagcircuit import DAGCircuit
 from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.basepasses import AnalysisPass
-from qiskit.transpiler.exceptions import LayoutError, TranspilerError
+from qiskit.transpiler.exceptions import TranspilerError
 from qiskit.providers.models import BackendProperties
 
 
-class DistanceMultiLayout(AnalysisPass):
+class BufferedMultiLayout(AnalysisPass):
     def __init__(
         self,
         backend_prop: BackendProperties,
@@ -31,8 +28,8 @@ class DistanceMultiLayout(AnalysisPass):
         super().__init__()
         self.backend_prop = backend_prop
 
-        self.hw_still_avaible = True
-        self.floaded_dag = None
+        self.hw_still_available = True
+        self.overflowed_dag = None
         self.largest_hw_qubits = len(backend_prop.qubits)
 
         self.n_hop = n_hop
@@ -132,7 +129,7 @@ class DistanceMultiLayout(AnalysisPass):
             self.qarg_to_id[q.register.name + str(q.index)] = idx + self.used_hwq
             idx += 1
 
-        # every time next_graph is assgined, prog_graph is initialized
+        # every time next_graph is assigned, prog_graph is initialized
         self.prog_graph = nx.Graph()
         for gate in dag.two_qubit_ops():
             qid1 = self._qarg_to_id(gate.qargs[0])
@@ -355,20 +352,19 @@ class DistanceMultiLayout(AnalysisPass):
     def run(self, next_dag: DAGCircuit, init_dag=None):
         """Run the DistanceMultiLayout pass on `list of dag`."""
 
-        # Compare next dag.qubits to left num qubits status and check the status by using self.hw_still_avaible.
-        # If so, hw_still_avaible=False and return init_dag
+        # Compare next dag.qubits to left num qubits status and check the status by using self.hw_still_available.
+        # If so, hw_still_available=False and return init_dag
         # find next_dag's hw_qubits
         # Combine init_dag and next_dag
         # Return init_dag
 
         # initialize dag as program graphs
         num_qubits = self._create_program_graphs(dag=next_dag)
-        # print("self.largest_hw_qubits", self.largest_hw_qubits)
 
         # check the hardware availability
         if num_qubits > self.largest_hw_qubits:
-            self.hw_still_avaible = False
-            self.floaded_dag = next_dag
+            self.hw_still_available = False
+            self.overflowed_dag = next_dag
             return init_dag
 
         # sort program sub-graphs by weight
@@ -389,8 +385,8 @@ class DistanceMultiLayout(AnalysisPass):
                 if best_hw_edge is None:
                     # hw has no capacity to add next_dag
                     if init_dag is not None:
-                        self.hw_still_avaible = False
-                        self.floaded_dag = next_dag
+                        self.hw_still_available = False
+                        self.overflowed_dag = next_dag
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed "
@@ -407,12 +403,12 @@ class DistanceMultiLayout(AnalysisPass):
                 )
 
                 heavier_prog_qubit = self._adjacent_heavier_node(edge, self.prog_graph)
-                ligher_prog_qubit = (
+                lighter_prog_qubit = (
                     edge[1] if edge[0] == heavier_prog_qubit else edge[0]
                 )
 
                 self.prog2hw[heavier_prog_qubit] = better_adj_hw_qubit
-                self.prog2hw[ligher_prog_qubit] = less_reliab_adj_hw_qubit
+                self.prog2hw[lighter_prog_qubit] = less_reliab_adj_hw_qubit
                 self.available_hw_qubits.remove(better_adj_hw_qubit)
                 self.available_hw_qubits.remove(less_reliab_adj_hw_qubit)
 
@@ -425,8 +421,8 @@ class DistanceMultiLayout(AnalysisPass):
                 if best_hw_qubit is None:
                     # hw has no capacity to add next_dag
                     if init_dag is not None:
-                        self.hw_still_avaible = False
-                        self.floaded_dag = next_dag
+                        self.hw_still_available = False
+                        self.overflowed_dag = next_dag
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed in selected device. "
@@ -448,8 +444,8 @@ class DistanceMultiLayout(AnalysisPass):
                 if best_hw_qubit is None:
                     # hw has no capacity to add next_dag
                     if init_dag is not None:
-                        self.hw_still_avaible = False
-                        self.floaded_dag = next_dag
+                        self.hw_still_available = False
+                        self.overflowed_dag = next_dag
                         return init_dag
                     raise TranspilerError(
                         "CNOT({}, {}) could not be placed in selected device. "
@@ -477,7 +473,6 @@ class DistanceMultiLayout(AnalysisPass):
                 self.prog2hw[qid] = self.available_hw_qubits[0]
                 self.available_hw_qubits.remove(self.prog2hw[qid])
 
-        print("before layout: \n", self.layout_dict)
         for q in next_dag.qubits:
             pid = self._qarg_to_id(q)
             hwid = self.prog2hw[pid]
@@ -488,21 +483,10 @@ class DistanceMultiLayout(AnalysisPass):
 
             # disable n hop qubits
             self._disable_qubits(hwid, n=self.n_hop)
-        print("after layout: \n", self.layout_dict)
 
         if init_dag:
-            print("Before Num qubit: ", len(init_dag.qubits))
             next_dag = self._combine_dag(init_dag, next_dag)
-            print(
-                "After Num qubit: ", len(next_dag.qubits), len(self.layout_dict.keys())
-            )
-        else:
-            print("Initialized!\n")
-            print(
-                "After Num qubit: ", len(next_dag.qubits), len(self.layout_dict.keys())
-            )
 
-        print("\n################################################### \n")
         """FIXME
         入力量子回路の順番によって、なぜかlayoutにはない量子回路が追加されるバグが生じることがある
         バグが生じる際、

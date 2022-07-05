@@ -7,7 +7,7 @@ import logging
 
 from typing import Union, List
 from qiskit import QuantumCircuit
-from palloq.multicircuit.OptimizationFunction import CostFunction, DepthBaseCost
+from palloq.circuitcombination.OptimizationFunction import CostFunction, DepthBaseCost
 from palloq.utils.esp import esp
 
 
@@ -16,7 +16,7 @@ _log = logging.getLogger(__name__)
 
 class MultiCircuitComposer(metaclass=abc.ABCMeta):
     """
-    Metaclass for cirucit composers
+    Metaclass for circuit composers
     """
 
     @abc.abstractmethod
@@ -85,7 +85,7 @@ must be Quantum Circuit"
         - Max: Throughput
         - Min: Error rate (For all quantum circuit)
 
-        if there is no more possible compbination,
+        if there is no more possible combination,
         this function returns False, otherwise True
         """
         # FIXME here using class variables, but could be global scope
@@ -129,7 +129,7 @@ must be Quantum Circuit"
                 _best_choice = _choice
                 break
         _log.info(f"choice: {'Single' if _best_choice is None else 'Multi'}")
-        # If there is no chice to take, then just return single qc
+        # If there is no choice to take, then just return single qc
         if _best_choice is None:
             _log.info("No good grouping is found. Return single circuit")
             # prepare multi circuit class
@@ -138,7 +138,7 @@ must be Quantum Circuit"
             _qc = self.qcircuits.pop(0)
             mulcirc.set_circuit_pairs([_qc])
             mulcirc.set_cost(0)
-            # What is the cost in the sequencial execution?
+            # What is the cost in the sequential execution?
             return mulcirc
         else:
             _log.info("pop out circuit based on cost calculations")
@@ -214,7 +214,7 @@ must be Quantum Circuit"
 
     def compose(self) -> None:
         """
-        optimize circuit conbination based on just single circuit property.
+        optimize circuit combination based on just single circuit property.
 
         Optimization policy:
             combine high esp circuits as many as possible
@@ -224,9 +224,9 @@ must be Quantum Circuit"
         W = self._device_size - self.offset
 
         # 1. The number of qubits in one circuit
-        # corresonds to the weight for it
+        # corresponds to the weight for it
         weights = [qc.num_qubits for qc in self.qcircuits]
-        # using estimated successs probability as the value for single circuit
+        # using estimated successful probability as the value for single circuit
         # TODO take this as class argument
         error_rates = {"u3": 0.0001, "cx": 0.001, "id": 0}
         # TODO find proper evaluation method for one
@@ -336,7 +336,7 @@ must be Quantum Circuit"
 
     def compose(self) -> None:
         """
-        optimize circuit conbination based on just single circuit property.
+        optimize circuit combination based on just single circuit property.
 
         Optimization policy:
             combine high esp circuits as many as possible

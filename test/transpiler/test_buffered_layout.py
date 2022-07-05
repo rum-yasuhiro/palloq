@@ -6,15 +6,13 @@ import unittest
 from datetime import datetime
 
 from qiskit.circuit.quantumcircuit import QuantumCircuit
-from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.compiler import transpile
 from qiskit.providers.models import BackendProperties
 from qiskit.providers.models.backendproperties import Nduv, Gate
-from palloq.transpiler.passes.layout.distance_layout import DistanceMultiLayout
+from palloq.transpiler.passes.layout.buffered_layout import BufferedMultiLayout
 from qiskit.converters import circuit_to_dag
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, circuit
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit.test.mock import FakeManhattan
-from qiskit.transpiler.layout import Layout
 
 
 def make_qubit_with_error(readout_error):
@@ -28,8 +26,8 @@ def make_qubit_with_error(readout_error):
     ]
 
 
-class TestDistanceLayout(unittest.TestCase):
-    def test_run_sigledag(self):
+class TestBufferedLayout(unittest.TestCase):
+    def test_run_singledag(self):
 
         # prepare test dag
         qr = QuantumRegister(3)
@@ -43,7 +41,7 @@ class TestDistanceLayout(unittest.TestCase):
         backend = FakeManhattan()
         bprop = backend.properties()
 
-        dml = DistanceMultiLayout(
+        dml = BufferedMultiLayout(
             backend_prop=bprop,
         )
 
@@ -83,7 +81,7 @@ class TestDistanceLayout(unittest.TestCase):
         dag2 = circuit_to_dag(qc2)
 
         # initialize dml
-        dml = DistanceMultiLayout(
+        dml = BufferedMultiLayout(
             backend_prop=bprop,
         )
 
@@ -130,7 +128,7 @@ class TestDistanceLayout(unittest.TestCase):
         qr1 = QuantumRegister(3, "q1")
         cr1 = ClassicalRegister(3)
         qc1 = QuantumCircuit(qr1, cr1)
-        # weight 2 on (0, 1) and wegit 1 on (1, 2)
+        # weight 2 on (0, 1) and weight 1 on (1, 2)
         qc1.cx(qr1[0], qr1[1])
         qc1.cx(qr1[1], qr1[0])
         qc1.cx(qr1[1], qr1[2])
@@ -141,31 +139,31 @@ class TestDistanceLayout(unittest.TestCase):
         qr2 = QuantumRegister(3, "q2")
         cr2 = ClassicalRegister(3)
         qc2 = QuantumCircuit(qr2, cr2)
-        # weight 1 on (0, 1) and wegit 2 on (1, 2)
+        # weight 1 on (0, 1) and weight 2 on (1, 2)
         qc2.cx(qr2[0], qr2[1])
         qc2.cx(qr2[1], qr2[2])
         qc2.cx(qr2[2], qr2[1])
         qc2.measure(qr2, cr2)
         dag2 = circuit_to_dag(qc2)
 
-        # initialize and run dmlayout
-        dmlayout = DistanceMultiLayout(
+        # initialize and run bm_layout
+        bm_layout = BufferedMultiLayout(
             backend_prop=bprop,
         )
-        init_dag = dmlayout.run(next_dag=dag1)
-        mapped_dag = dmlayout.run(next_dag=dag2, init_dag=init_dag)
-        initial_layout = dmlayout.property_set["layout"]
+        init_dag = bm_layout.run(next_dag=dag1)
+        mapped_dag = bm_layout.run(next_dag=dag2, init_dag=init_dag)
+        initial_layout = bm_layout.property_set["layout"]
         self.assertEqual(initial_layout[0], qr1[2])
         self.assertEqual(initial_layout[5], qr2[0])
 
-        # initialize and run dmlayout
-        dmlayout = DistanceMultiLayout(
+        # initialize and run bm_layout
+        bm_layout = BufferedMultiLayout(
             backend_prop=bprop,
             n_hop=1,
         )
-        init_dag = dmlayout.run(next_dag=dag1)
-        mapped_dag = dmlayout.run(next_dag=dag2, init_dag=init_dag)
-        initial_layout = dmlayout.property_set["layout"]
+        init_dag = bm_layout.run(next_dag=dag1)
+        mapped_dag = bm_layout.run(next_dag=dag2, init_dag=init_dag)
+        initial_layout = bm_layout.property_set["layout"]
         self.assertEqual(initial_layout[0], qr1[2])
         self.assertEqual(init_dag, mapped_dag)
 
@@ -202,7 +200,7 @@ class TestDistanceLayout(unittest.TestCase):
         qr1 = QuantumRegister(3, "q1")
         cr1 = ClassicalRegister(3)
         qc1 = QuantumCircuit(qr1, cr1)
-        # weight 2 on (0, 1) and wegit 1 on (1, 2)
+        # weight 2 on (0, 1) and weight 1 on (1, 2)
         qc1.cx(qr1[0], qr1[1])
         qc1.cx(qr1[1], qr1[0])
         qc1.cx(qr1[1], qr1[2])
@@ -213,20 +211,20 @@ class TestDistanceLayout(unittest.TestCase):
         qr2 = QuantumRegister(3, "q2")
         cr2 = ClassicalRegister(3)
         qc2 = QuantumCircuit(qr2, cr2)
-        # weight 1 on (0, 1) and wegit 2 on (1, 2)
+        # weight 1 on (0, 1) and weight 2 on (1, 2)
         qc2.cx(qr2[0], qr2[1])
         qc2.cx(qr2[1], qr2[2])
         qc2.cx(qr2[2], qr2[1])
         qc2.measure(qr2, cr2)
         dag2 = circuit_to_dag(qc2)
 
-        # initialize dmlayout
-        dmlayout = DistanceMultiLayout(
+        # initialize bm_layout
+        bm_layout = BufferedMultiLayout(
             backend_prop=bprop,
         )
 
-        init_dag = dmlayout.run(next_dag=dag1)
-        mapped_dag = dmlayout.run(next_dag=dag2, init_dag=init_dag)
+        init_dag = bm_layout.run(next_dag=dag1)
+        mapped_dag = bm_layout.run(next_dag=dag2, init_dag=init_dag)
 
         self.assertEqual(init_dag, mapped_dag)
 
